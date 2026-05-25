@@ -17,6 +17,7 @@ mod mp4;
 mod slices;
 mod stream;
 mod streamer;
+mod streamer_manager;
 mod web;
 
 #[cfg(feature = "bundled-ui")]
