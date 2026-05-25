@@ -6,6 +6,7 @@ pub mod accept;
 mod live;
 mod path;
 mod session;
+mod cameras_admin;
 mod signals;
 mod static_file;
 mod users;
@@ -277,6 +278,18 @@ impl Service {
             Path::User(id) => (
                 CacheControl::PrivateDynamic,
                 self.user(req, caller, id).await?,
+            ),
+            Path::CamerasAdmin => (
+                CacheControl::PrivateDynamic,
+                Arc::clone(&self).cameras_admin(req, caller).await?,
+            ),
+            Path::CameraAdmin(id) => (
+                CacheControl::PrivateDynamic,
+                Arc::clone(&self).camera_admin(req, caller, id).await?,
+            ),
+            Path::CameraStreamAdmin(id, type_) => (
+                CacheControl::PrivateDynamic,
+                Arc::clone(&self).camera_stream_admin(req, caller, id, type_).await?,
             ),
         };
         match cache {
