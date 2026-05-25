@@ -660,3 +660,84 @@ pub enum LiveM4sMessage {
     Error { message: String },
     Dropped { frames: u64 },
 }
+
+// ---- Camera admin API ----
+
+/// Request body for `POST /api/cameras`.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostCameraRequest {
+    pub csrf: Option<String>,
+    pub short_name: String,
+    #[serde(default)]
+    pub description: String,
+    pub onvif_base_url: Option<url::Url>,
+    #[serde(default)]
+    pub username: String,
+    #[serde(default)]
+    pub password: String,
+}
+
+/// Request body for `PUT /api/cameras/<id>`.
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PatchCameraRequest {
+    pub csrf: Option<String>,
+    pub short_name: Option<String>,
+    pub description: Option<String>,
+    pub onvif_base_url: Option<url::Url>,
+    pub username: Option<String>,
+    pub password: Option<String>,
+}
+
+/// Request body for `PUT /api/cameras/<id>/streams/<type>`.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PutCameraStreamRequest {
+    pub csrf: Option<String>,
+    #[serde(default)]
+    pub mode: String, // "record" or "" (off)
+    pub rtsp_url: Option<url::Url>,
+    #[serde(default)]
+    pub rtsp_transport: String, // "tcp", "udp", or ""
+    pub sample_file_dir_id: Option<i32>,
+}
+
+/// Response body for `POST /api/cameras`.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostCameraResponse {
+    pub camera_id: i32,
+}
+
+/// One camera entry in `GET /api/cameras` (admin view).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CameraAdminEntry {
+    pub id: i32,
+    pub uuid: uuid::Uuid,
+    pub short_name: String,
+    pub description: String,
+    pub onvif_base_url: Option<String>,
+    pub has_credentials: bool, // true if username is non-empty
+    pub streams: Vec<StreamAdminEntry>,
+}
+
+/// One stream entry inside `CameraAdminEntry`.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamAdminEntry {
+    pub id: i32,
+    pub type_: String,
+    pub mode: String,
+    pub rtsp_url: Option<String>,
+    pub rtsp_transport: String,
+    pub sample_file_dir_id: Option<i32>,
+}
+
+/// Response body for `GET /api/cameras`.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetCamerasAdminResponse {
+    pub cameras: Vec<CameraAdminEntry>,
+}
