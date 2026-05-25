@@ -485,3 +485,107 @@ export function recordingUrl(
     ts: timestampTrack,
   });
 }
+
+// ---- Camera admin API ----
+
+export interface StreamAdminEntry {
+  id: number;
+  type_: string;
+  mode: string;
+  rtspUrl?: string;
+  rtspTransport: string;
+  sampleFileDirId?: number;
+}
+
+export interface CameraAdminEntry {
+  id: number;
+  uuid: string;
+  shortName: string;
+  description: string;
+  onvifBaseUrl?: string;
+  hasCredentials: boolean;
+  streams: StreamAdminEntry[];
+}
+
+export interface GetCamerasAdminResponse {
+  cameras: CameraAdminEntry[];
+}
+
+export interface PostCameraRequest {
+  csrf?: string;
+  shortName: string;
+  description?: string;
+  onvifBaseUrl?: string;
+  username?: string;
+  password?: string;
+}
+
+export interface PatchCameraRequest {
+  csrf?: string;
+  shortName?: string;
+  description?: string;
+  onvifBaseUrl?: string;
+  username?: string;
+  password?: string;
+}
+
+export interface PutCameraStreamRequest {
+  csrf?: string;
+  mode: string;
+  rtspUrl?: string;
+  rtspTransport?: string;
+  sampleFileDirId?: number;
+}
+
+export async function getCamerasAdmin(init: RequestInit) {
+  return await json<GetCamerasAdminResponse>("/api/cameras", init);
+}
+
+export async function createCamera(req: PostCameraRequest, init: RequestInit) {
+  return await myfetch("/api/cameras", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+    ...init,
+  });
+}
+
+export async function updateCamera(
+  id: number,
+  req: PatchCameraRequest,
+  init: RequestInit,
+) {
+  return await myfetch(`/api/cameras/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+    ...init,
+  });
+}
+
+export async function deleteCamera(
+  id: number,
+  csrf: string | undefined,
+  init: RequestInit,
+) {
+  return await myfetch(`/api/cameras/${id}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ csrf }),
+    ...init,
+  });
+}
+
+export async function updateCameraStream(
+  cameraId: number,
+  type_: string,
+  req: PutCameraStreamRequest,
+  init: RequestInit,
+) {
+  return await myfetch(`/api/cameras/${cameraId}/streams/${type_}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+    ...init,
+  });
+}

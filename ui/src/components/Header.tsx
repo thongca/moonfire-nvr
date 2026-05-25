@@ -11,6 +11,7 @@ import ListItemText from "@mui/material/ListItemText";
 import ListIcon from "@mui/icons-material/List";
 import PeopleIcon from "@mui/icons-material/People";
 import Videocam from "@mui/icons-material/Videocam";
+import VideocamAddIcon from "@mui/icons-material/VideoCameraBack";
 import * as api from "../api";
 
 import MoonfireMenu from "../AppMenu";
@@ -81,17 +82,30 @@ export default function Header({
             <ListItemText primary="Live view (experimental)" />
           </ListItemButton>
           {toplevel?.permissions.adminUsers && (
-            <ListItemButton
-              key="users"
-              onClick={toggleShowMenu}
-              component={Link}
-              to="/users"
-            >
-              <ListItemIcon>
-                <PeopleIcon />
-              </ListItemIcon>
-              <ListItemText primary="Users" />
-            </ListItemButton>
+            <>
+              <ListItemButton
+                key="users"
+                onClick={toggleShowMenu}
+                component={Link}
+                to="/users"
+              >
+                <ListItemIcon>
+                  <PeopleIcon />
+                </ListItemIcon>
+                <ListItemText primary="Users" />
+              </ListItemButton>
+              <ListItemButton
+                key="cameras"
+                onClick={toggleShowMenu}
+                component={Link}
+                to="/cameras"
+              >
+                <ListItemIcon>
+                  <VideocamAddIcon />
+                </ListItemIcon>
+                <ListItemText primary="Cameras" />
+              </ListItemButton>
+            </>
           )}
         </List>
       </Drawer>
