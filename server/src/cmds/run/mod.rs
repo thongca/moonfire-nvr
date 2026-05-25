@@ -291,7 +291,7 @@ async fn inner(
 
     // Start a StreamerManager + initial streamers for each stream in record mode.
     let (streamer_tx, streamer_rx) = mpsc::channel::<StreamerCommand>(64);
-    if !read_only {
+    let manager_handle: Option<tokio::task::JoinHandle<()>> = if !read_only {
         let l = db.lock();
         let env: &'static streamer::Environment<'static, clock::RealClocks> =
             Box::leak(Box::new(streamer::Environment {
@@ -304,17 +304,27 @@ async fn inner(
         // Pre-seed: start all streams that are currently in record mode.
         for (stream_id, stream) in l.streams_by_id() {
             let locked = stream.inner.lock();
-            if locked.config.mode == db::json::STREAM_MODE_RECORD
-                && locked.sample_file_dir.is_some()
-            {
-                mgr.seed_stream(*stream_id);
+            if locked.config.mode == db::json::STREAM_MODE_RECORD {
+                if locked.sample_file_dir.is_none() {
+                    warn!(
+                        "Stream {} set to record but has no sample file dir; skipping",
+                        locked.id
+                    );
+                } else {
+                    mgr.seed_stream(*stream_id);
+                }
             }
         }
         drop(l);
-        tokio::task::Builder::new()
-            .name("streamer-manager")
-            .spawn(mgr.run())
-            .expect("spawn should succeed");
+        Some(
+            tokio::task::Builder::new()
+                .name("streamer-manager")
+                .spawn(mgr.run())
+                .expect("spawn should succeed"),
+        )
+    } else {
+        drop(streamer_rx); // not needed in read-only mode
+        None
     };
 
     // Start the web interface(s).
@@ -390,19 +400,21 @@ async fn inner(
     }
 
     info!("Shutting down streamers, directory pools, and flusher.");
-    // Drop the sender; this closes the channel and causes StreamerManager::run() to exit.
+    // Drop the sender; this closes the channel and causes StreamerManager to exit.
     drop(streamer_tx);
-    // The manager task will self-terminate; give it 1s to stop streams gracefully.
-    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+    info!("Waiting for StreamerManager and TEARDOWN requests to complete.");
+    if let Some(handle) = manager_handle {
+        if handle.await.is_err() {
+            tracing::error!("streamer-manager panicked; look for previous panic message");
+        }
+    }
     if let Some(flusher) = flusher {
         let dirs: Vec<_> = db.lock().sample_file_dirs_by_id().keys().cloned().collect();
         db.close_sample_file_dirs(&dirs).await?;
         drop(flusher.channel);
         flusher.join.await.unwrap();
     }
-
-    info!("Waiting for TEARDOWN requests to complete.");
-    // Session groups are owned by StreamerManager; teardown happens when it shuts down.
 
     info!("Exiting.");
     Ok(0)

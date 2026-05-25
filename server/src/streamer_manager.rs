@@ -146,14 +146,9 @@ impl StreamerManager {
             .entry(camera.id)
             .or_insert_with(|| Arc::new(SessionGroup::default().named(camera.short_name.clone())))
             .clone();
-        // Spread rotation offset evenly based on how many streams are already running.
-        let rotate_offset_sec = if self.handles.is_empty() {
-            0
-        } else {
-            // Spread rotation across interval based on how many streams are already running.
-            streamer::ROTATE_INTERVAL_SEC * self.handles.len() as i64
-                / (self.handles.len() as i64 + 1)
-        };
+        // Use the current number of running streams as an index to distribute rotation times.
+        // This gives each new stream a different offset (mod ROTATE_INTERVAL_SEC).
+        let rotate_offset_sec = (self.handles.len() as i64) % streamer::ROTATE_INTERVAL_SEC;
         let mut s = streamer::Streamer::new(
             self.env,
             camera,
