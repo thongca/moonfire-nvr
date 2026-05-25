@@ -77,6 +77,12 @@ impl StreamerManager {
         for id in ids {
             self.stop_stream(id).await;
         }
+        // Tear down all RTSP sessions.
+        for (_, group) in self.session_groups.drain() {
+            if let Err(err) = group.await_teardown().await {
+                tracing::error!(%err, "teardown failed");
+            }
+        }
         info!("StreamerManager stopped");
     }
 
@@ -140,9 +146,14 @@ impl StreamerManager {
             .entry(camera.id)
             .or_insert_with(|| Arc::new(SessionGroup::default().named(camera.short_name.clone())))
             .clone();
-        // Spread rotation offset across streams by stream_id.
-        let rotate_offset_sec =
-            (stream_id as i64 % streamer::ROTATE_INTERVAL_SEC).abs();
+        // Spread rotation offset evenly based on how many streams are already running.
+        let rotate_offset_sec = if self.handles.is_empty() {
+            0
+        } else {
+            // Spread rotation across interval based on how many streams are already running.
+            streamer::ROTATE_INTERVAL_SEC * self.handles.len() as i64
+                / (self.handles.len() as i64 + 1)
+        };
         let mut s = streamer::Streamer::new(
             self.env,
             camera,

@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-v3.0-or-later WITH GPL-3.0-linking-exception.
 
 use crate::streamer;
+use crate::streamer_manager::{StreamerCommand, StreamerManager};
 use crate::web;
 use crate::web::accept::Listener;
 use base::clock;
@@ -12,15 +13,14 @@ use base::{bail, Error};
 use bpaf::Bpaf;
 use hyper::service::service_fn;
 use itertools::Itertools;
-use retina::client::SessionGroup;
 use std::fmt::Write as _;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::signal::unix::{signal, SignalKind};
+use tokio::sync::mpsc;
 use tracing::error;
-use tracing::Instrument as _;
 use tracing::{info, warn};
 
 #[cfg(target_os = "linux")]
@@ -289,64 +289,32 @@ async fn inner(
     };
     info!("Resolved timezone: {}", &time_zone_name);
 
-    // Start a streamer for each stream.
-    let mut streamers = tokio::task::JoinSet::new();
-    let mut session_groups_by_camera: FastHashMap<i32, Arc<retina::client::SessionGroup>> =
-        FastHashMap::default();
+    // Start a StreamerManager + initial streamers for each stream in record mode.
+    let (streamer_tx, streamer_rx) = mpsc::channel::<StreamerCommand>(64);
     if !read_only {
-        // Start up streams.
         let l = db.lock();
-        let env = Box::leak(Box::new(streamer::Environment {
-            clocks: db.clocks(),
-            sample_entries: l.sample_entries().clone(),
-            opener: &crate::stream::OPENER,
-            shutdown_rx: shutdown_rx.clone(),
-        }));
-        let streams = l.streams_by_id().len();
-        for (i, (_id, stream)) in l.streams_by_id().iter().enumerate() {
+        let env: &'static streamer::Environment<'static, clock::RealClocks> =
+            Box::leak(Box::new(streamer::Environment {
+                clocks: db.clocks(),
+                sample_entries: l.sample_entries().clone(),
+                opener: &crate::stream::OPENER,
+                shutdown_rx: shutdown_rx.clone(),
+            }));
+        let mut mgr = StreamerManager::new(db.clone(), env, streamer_rx);
+        // Pre-seed: start all streams that are currently in record mode.
+        for (stream_id, stream) in l.streams_by_id() {
             let locked = stream.inner.lock();
-            if locked.config.mode != db::json::STREAM_MODE_RECORD {
-                continue;
+            if locked.config.mode == db::json::STREAM_MODE_RECORD
+                && locked.sample_file_dir.is_some()
+            {
+                mgr.seed_stream(*stream_id);
             }
-            if locked.sample_file_dir.is_none() {
-                warn!(
-                    "Stream {} set to record but has no sample file dir id",
-                    locked.id
-                );
-                continue;
-            }
-            let camera = l.cameras_by_id().get(&locked.camera_id).unwrap();
-            let rotate_offset_sec = streamer::ROTATE_INTERVAL_SEC * i as i64 / streams as i64;
-            let session_group = session_groups_by_camera
-                .entry(camera.id)
-                .or_insert_with(|| {
-                    Arc::new(SessionGroup::default().named(camera.short_name.clone()))
-                })
-                .clone();
-            let mut streamer = streamer::Streamer::new(
-                env,
-                camera,
-                stream.clone(),
-                &locked,
-                session_group,
-                rotate_offset_sec,
-                streamer::ROTATE_INTERVAL_SEC,
-            )?;
-            let span = tracing::info_span!("streamer", stream = streamer.short_name());
-            streamers
-                .build_task()
-                .name(&format!("s-{}", streamer.short_name()))
-                .spawn(
-                    async move {
-                        info!("starting");
-                        streamer.run().await;
-                        info!("ending");
-                    }
-                    .instrument(span),
-                )
-                .expect("creating streamer task should succeed");
         }
         drop(l);
+        tokio::task::Builder::new()
+            .name("streamer-manager")
+            .spawn(mgr.run())
+            .expect("spawn should succeed");
     };
 
     // Start the web interface(s).
@@ -422,11 +390,10 @@ async fn inner(
     }
 
     info!("Shutting down streamers, directory pools, and flusher.");
-    while let Some(res) = streamers.join_next().await {
-        if res.is_err() {
-            tracing::error!("streamer panicked; look for previous panic message");
-        }
-    }
+    // Drop the sender; this closes the channel and causes StreamerManager::run() to exit.
+    drop(streamer_tx);
+    // The manager task will self-terminate; give it 1s to stop streams gracefully.
+    tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     if let Some(flusher) = flusher {
         let dirs: Vec<_> = db.lock().sample_file_dirs_by_id().keys().cloned().collect();
         db.close_sample_file_dirs(&dirs).await?;
@@ -435,11 +402,7 @@ async fn inner(
     }
 
     info!("Waiting for TEARDOWN requests to complete.");
-    for g in session_groups_by_camera.values() {
-        if let Err(err) = g.await_teardown().await {
-            error!(%err, "teardown failed");
-        }
-    }
+    // Session groups are owned by StreamerManager; teardown happens when it shuts down.
 
     info!("Exiting.");
     Ok(0)
