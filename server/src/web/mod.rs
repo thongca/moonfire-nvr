@@ -152,6 +152,8 @@ pub struct Config<'a> {
     pub time_zone_name: String,
     pub allow_unauthenticated_permissions: Option<db::Permissions>,
     pub privileged_unix_uid: Option<nix::unistd::Uid>,
+    /// Channel to the StreamerManager; None in read-only mode.
+    pub streamer_tx: Option<tokio::sync::mpsc::Sender<crate::streamer_manager::StreamerCommand>>,
 }
 
 pub struct Service {
@@ -162,6 +164,7 @@ pub struct Service {
     allow_unauthenticated_permissions: Option<db::Permissions>,
     trust_forward_hdrs: bool,
     privileged_unix_uid: Option<nix::unistd::Uid>,
+    streamer_tx: Option<tokio::sync::mpsc::Sender<crate::streamer_manager::StreamerCommand>>,
 }
 
 /// Useful HTTP `Cache-Control` values to set on successful (HTTP 200) API responses.
@@ -190,6 +193,7 @@ impl Service {
             trust_forward_hdrs: config.trust_forward_hdrs,
             time_zone_name: config.time_zone_name,
             privileged_unix_uid: config.privileged_unix_uid,
+            streamer_tx: config.streamer_tx,
         })
     }
 
