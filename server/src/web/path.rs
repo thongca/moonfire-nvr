@@ -24,6 +24,9 @@ pub(super) enum Path {
     Static,                                           // (anything that doesn't start with "/api/")
     Users,                                            // "/api/users"
     User(i32),                                        // "/api/users/<id>"
+    CamerasAdmin,                                     // GET/POST "/api/cameras"
+    CameraAdmin(i32),                                 // PUT/DELETE "/api/cameras/<id>"
+    CameraStreamAdmin(i32, db::StreamType),           // PUT "/api/cameras/<id>/streams/<type>"
     NotFound,
 }
 
@@ -55,7 +58,25 @@ impl Path {
                 return Path::InitSegment(id, debug);
             }
             Path::NotFound
+        } else if path == "cameras" {
+            return Path::CamerasAdmin;
         } else if let Some(path) = path.strip_prefix("cameras/") {
+            // Check for integer camera ID (admin API) first.
+            if let Ok(id) = i32::from_str(path) {
+                return Path::CameraAdmin(id);
+            }
+            if let Some((id_str, rest)) = path.split_once('/') {
+                if let Ok(id) = i32::from_str(id_str) {
+                    if let Some(type_str) = rest.strip_prefix("streams/") {
+                        return match db::StreamType::parse(type_str) {
+                            Some(t) => Path::CameraStreamAdmin(id, t),
+                            None => Path::NotFound,
+                        };
+                    }
+                    return Path::NotFound;
+                }
+            }
+            // Existing UUID-based path parsing continues below:
             let (uuid, path) = match path.split_once('/') {
                 Some(pair) => pair,
                 None => return Path::NotFound,
@@ -170,5 +191,29 @@ mod tests {
         assert_eq!(Path::decode("/api/users/42"), Path::User(42));
         assert_eq!(Path::decode("/api/users/asdf"), Path::NotFound);
         assert_eq!(Path::decode("/api/users/"), Path::Users);
+    }
+
+    #[test]
+    fn camera_admin_paths() {
+        use super::Path;
+        use db::StreamType;
+        assert_eq!(Path::decode("/api/cameras"), Path::CamerasAdmin);
+        assert_eq!(Path::decode("/api/cameras/"), Path::NotFound);
+        assert_eq!(Path::decode("/api/cameras/5"), Path::CameraAdmin(5));
+        assert_eq!(Path::decode("/api/cameras/999"), Path::CameraAdmin(999));
+        assert_eq!(
+            Path::decode("/api/cameras/5/streams/main"),
+            Path::CameraStreamAdmin(5, StreamType::Main)
+        );
+        assert_eq!(
+            Path::decode("/api/cameras/5/streams/sub"),
+            Path::CameraStreamAdmin(5, StreamType::Sub)
+        );
+        assert_eq!(
+            Path::decode("/api/cameras/5/streams/ext"),
+            Path::CameraStreamAdmin(5, StreamType::Ext)
+        );
+        assert_eq!(Path::decode("/api/cameras/5/streams/junk"), Path::NotFound);
+        assert_eq!(Path::decode("/api/cameras/abc"), Path::NotFound);
     }
 }
