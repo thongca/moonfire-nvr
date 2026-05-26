@@ -703,6 +703,7 @@ mod tests {
                     trust_forward_hdrs: true,
                     time_zone_name: "".to_owned(),
                     privileged_unix_uid: None,
+                    streamer_tx: None,
                 })
                 .unwrap(),
             );

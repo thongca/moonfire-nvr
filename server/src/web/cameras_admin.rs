@@ -131,35 +131,40 @@ impl Service {
         let (_, b) = into_json_body(req).await?;
         let r: json::PatchCameraRequest = parse_json_body(&b)?;
         require_csrf_if_session(&caller, r.csrf.as_deref())?;
-        let mut l = self.db.lock();
-        let mut change = l.null_camera_change(camera_id)?;
-        if let Some(v) = r.short_name {
-            change.short_name = v;
-        }
-        if let Some(v) = r.description {
-            change.config.description = v;
-        }
-        if let Some(v) = r.onvif_base_url {
-            change.config.onvif_base_url = Some(v);
-        }
-        if let Some(v) = r.username {
-            change.config.username = v;
-        }
-        if let Some(v) = r.password {
-            change.config.password = v;
-        }
-        l.update_camera(camera_id, change)?;
-        // Restart any running streams for this camera so new credentials take effect.
-        if let Some(tx) = self.streamer_tx.as_ref() {
-            let cam = l
-                .cameras_by_id()
+        // Use a block so the lock is fully out of scope before any .await.
+        let stream_ids: Vec<i32> = {
+            let mut l = self.db.lock();
+            let mut change = l.null_camera_change(camera_id)?;
+            if let Some(v) = r.short_name {
+                change.short_name = v;
+            }
+            if let Some(v) = r.description {
+                change.config.description = v;
+            }
+            if let Some(v) = r.onvif_base_url {
+                change.config.onvif_base_url = Some(v);
+            }
+            if let Some(v) = r.username {
+                change.config.username = v;
+            }
+            if let Some(v) = r.password {
+                change.config.password = v;
+            }
+            l.update_camera(camera_id, change)?;
+            l.cameras_by_id()
                 .get(&camera_id)
-                .ok_or_else(|| err!(Internal, msg("camera vanished after update")))?;
-            for &stream_id in cam.streams.iter().flatten() {
+                .ok_or_else(|| err!(Internal, msg("camera vanished after update")))?
+                .streams
+                .iter()
+                .flatten()
+                .cloned()
+                .collect()
+        }; // l dropped here
+        if let Some(tx) = self.streamer_tx.as_ref() {
+            for stream_id in stream_ids {
                 let _ = tx.send(StreamerCommand::RestartStream(stream_id)).await;
             }
         }
-        drop(l);
         Ok(plain_response(StatusCode::NO_CONTENT, ""))
     }
 
@@ -217,35 +222,39 @@ impl Service {
         let (_, b) = into_json_body(req).await?;
         let r: json::PutCameraStreamRequest = parse_json_body(&b)?;
         require_csrf_if_session(&caller, r.csrf.as_deref())?;
-        let mut l = self.db.lock();
-        let mut change = l.null_camera_change(camera_id)?;
-        let si = type_.index();
-        change.streams[si].config.mode = r.mode.clone();
-        change.streams[si].config.url = r.rtsp_url;
-        change.streams[si].config.rtsp_transport = r.rtsp_transport;
-        if let Some(dir_id) = r.sample_file_dir_id {
-            if l.sample_file_dirs_by_id().get(&dir_id).is_none() {
-                bail!(NotFound, msg("no such sample file dir {dir_id}"));
+        // Use a block so the lock is fully out of scope before any .await.
+        let cmd_opt: Option<StreamerCommand> = {
+            let mut l = self.db.lock();
+            let mut change = l.null_camera_change(camera_id)?;
+            let si = type_.index();
+            change.streams[si].config.mode = r.mode.clone();
+            change.streams[si].config.url = r.rtsp_url;
+            change.streams[si].config.rtsp_transport = r.rtsp_transport;
+            if let Some(dir_id) = r.sample_file_dir_id {
+                if l.sample_file_dirs_by_id().get(&dir_id).is_none() {
+                    bail!(NotFound, msg("no such sample file dir {dir_id}"));
+                }
+                change.streams[si].sample_file_dir_id = Some(dir_id);
             }
-            change.streams[si].sample_file_dir_id = Some(dir_id);
-        }
-        l.update_camera(camera_id, change)?;
-        // Start, stop, or restart the streamer based on new mode.
-        if let Some(tx) = self.streamer_tx.as_ref() {
-            let cam = l
-                .cameras_by_id()
+            l.update_camera(camera_id, change)?;
+            let mode = r.mode.clone();
+            l.cameras_by_id()
                 .get(&camera_id)
-                .ok_or_else(|| err!(Internal, msg("camera vanished after stream update")))?;
-            if let Some(stream_id) = cam.streams[si] {
-                let cmd = if r.mode == db::json::STREAM_MODE_RECORD {
-                    StreamerCommand::RestartStream(stream_id)
-                } else {
-                    StreamerCommand::StopStream(stream_id)
-                };
+                .ok_or_else(|| err!(Internal, msg("camera vanished after stream update")))?
+                .streams[si]
+                .map(|stream_id| {
+                    if mode == db::json::STREAM_MODE_RECORD {
+                        StreamerCommand::RestartStream(stream_id)
+                    } else {
+                        StreamerCommand::StopStream(stream_id)
+                    }
+                })
+        }; // l dropped here
+        if let Some(tx) = self.streamer_tx.as_ref() {
+            if let Some(cmd) = cmd_opt {
                 let _ = tx.send(cmd).await;
             }
         }
-        drop(l);
         Ok(plain_response(StatusCode::NO_CONTENT, ""))
     }
 }

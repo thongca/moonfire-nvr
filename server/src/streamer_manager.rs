@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: GPL-v3.0-or-later WITH GPL-3.0-linking-exception.
 
 use crate::streamer;
-use base::clock;
+use base::{bail, clock};
 use db;
 use retina::client::SessionGroup;
 use std::collections::HashMap;
@@ -126,16 +126,10 @@ impl StreamerManager {
             .clone();
         let locked = stream.inner.lock();
         if locked.config.mode != db::json::STREAM_MODE_RECORD {
-            return Err(base::err!(
-                InvalidArgument,
-                msg("stream {stream_id} is not in record mode")
-            ));
+            bail!(InvalidArgument, msg("stream {stream_id} is not in record mode"));
         }
         if locked.sample_file_dir.is_none() {
-            return Err(base::err!(
-                InvalidArgument,
-                msg("stream {stream_id} has no sample file dir")
-            ));
+            bail!(InvalidArgument, msg("stream {stream_id} has no sample file dir"));
         }
         let camera = l
             .cameras_by_id()
