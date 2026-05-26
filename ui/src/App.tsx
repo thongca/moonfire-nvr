@@ -23,7 +23,7 @@ import React, { useEffect, useState } from "react";
 import * as api from "./api";
 import Login from "./Login";
 import { useSnackbars } from "./snackbars";
-import ListActivity from "./List";
+import ArchiveActivity from "./Archive";
 import DashboardActivity from "./Dashboard";
 import { Routes, Route, Navigate } from "react-router";
 import LiveActivity from "./Live";
@@ -169,7 +169,7 @@ function App() {
       <Route
         path="archive"
         element={
-          <ListActivity
+          <ArchiveActivity
             toplevel={toplevel}
             timeZoneName={timeZoneName!}
             Frame={Frame}
