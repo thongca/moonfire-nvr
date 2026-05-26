@@ -3,9 +3,11 @@
 // SPDX-License-Identifier: GPL-v3.0-or-later WITH GPL-3.0-linking-exception
 
 import React from "react";
+import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import { FrameProps } from "../App";
+import StatsBar from "./StatsBar";
 
 interface Props {
   Frame: React.ComponentType<FrameProps>;
@@ -18,6 +20,9 @@ export default function DashboardActivity({ Frame }: Props) {
         <Typography variant="h4" fontWeight={700}>
           System Overview
         </Typography>
+        <Box sx={{ mt: 3 }}>
+          <StatsBar />
+        </Box>
       </Container>
     </Frame>
   );
