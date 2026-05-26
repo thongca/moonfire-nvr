@@ -9,6 +9,8 @@ import Typography from "@mui/material/Typography";
 import { FrameProps } from "../App";
 import StatsBar from "./StatsBar";
 import PriorityFeeds from "./PriorityFeeds";
+import EventLog from "./EventLog";
+import MotionActivity from "./MotionActivity";
 
 interface Props {
   Frame: React.ComponentType<FrameProps>;
@@ -33,9 +35,9 @@ export default function DashboardActivity({ Frame }: Props) {
           }}
         >
           <PriorityFeeds />
-          {/* EventLog placeholder */}
-          <Box />
+          <EventLog />
         </Box>
+        <MotionActivity />
       </Container>
     </Frame>
   );
