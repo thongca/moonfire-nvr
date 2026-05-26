@@ -8,6 +8,7 @@ import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import { FrameProps } from "../App";
 import StatsBar from "./StatsBar";
+import PriorityFeeds from "./PriorityFeeds";
 
 interface Props {
   Frame: React.ComponentType<FrameProps>;
@@ -22,6 +23,18 @@ export default function DashboardActivity({ Frame }: Props) {
         </Typography>
         <Box sx={{ mt: 3 }}>
           <StatsBar />
+        </Box>
+        <Box
+          sx={{
+            mt: 3,
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
+            gap: 3,
+          }}
+        >
+          <PriorityFeeds />
+          {/* EventLog placeholder */}
+          <Box />
         </Box>
       </Container>
     </Frame>
