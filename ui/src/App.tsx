@@ -164,7 +164,7 @@ function App() {
     <Routes>
       <Route
         path=""
-        element={<DashboardActivity Frame={Frame} />}
+        element={<DashboardActivity Frame={Frame} toplevel={toplevel} />}
       />
       <Route
         path="archive"

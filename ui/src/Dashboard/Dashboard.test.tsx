@@ -6,16 +6,26 @@ import { screen } from "@testing-library/react";
 import { expect, test } from "vitest";
 import DashboardActivity from "./index";
 import { renderWithCtx } from "../testutil";
+import * as api from "../api";
 
 const Frame = ({ children }: { children: React.ReactNode }) => <>{children}</>;
 
+const fakeToplevel: api.ToplevelResponse = {
+  timeZoneName: "America/Los_Angeles",
+  cameras: [],
+  serverVersion: "test",
+  streams: new Map(),
+  permissions: {},
+  user: undefined,
+};
+
 test("renders system overview heading", () => {
-  renderWithCtx(<DashboardActivity Frame={Frame as any} />);
+  renderWithCtx(<DashboardActivity Frame={Frame as any} toplevel={fakeToplevel} />);
   expect(screen.getByText("System Overview")).toBeInTheDocument();
 });
 
 test("renders all four stat card labels", () => {
-  renderWithCtx(<DashboardActivity Frame={Frame as any} />);
+  renderWithCtx(<DashboardActivity Frame={Frame as any} toplevel={fakeToplevel} />);
   expect(screen.getByText("CAMERAS")).toBeInTheDocument();
   expect(screen.getByText("COMPUTE LOAD")).toBeInTheDocument();
   expect(screen.getByText("STORAGE ARRAY")).toBeInTheDocument();

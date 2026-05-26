@@ -7,6 +7,7 @@ import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import { FrameProps } from "../App";
+import * as api from "../api";
 import StatsBar from "./StatsBar";
 import PriorityFeeds from "./PriorityFeeds";
 import EventLog from "./EventLog";
@@ -14,9 +15,10 @@ import MotionActivity from "./MotionActivity";
 
 interface Props {
   Frame: React.ComponentType<FrameProps>;
+  toplevel: api.ToplevelResponse;
 }
 
-export default function DashboardActivity({ Frame }: Props) {
+export default function DashboardActivity({ Frame, toplevel }: Props) {
   return (
     <Frame>
       <Container maxWidth="xl" sx={{ py: 4 }}>
@@ -35,7 +37,7 @@ export default function DashboardActivity({ Frame }: Props) {
           }}
         >
           <PriorityFeeds />
-          <EventLog />
+          <EventLog cameras={toplevel.cameras} />
         </Box>
         <MotionActivity />
       </Container>
