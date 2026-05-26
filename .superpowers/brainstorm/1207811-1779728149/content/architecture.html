@@ -1,0 +1,82 @@
+<h2>Design: Kiến trúc tổng thể</h2>
+<p class="subtitle">Realtime Camera Management — Approach A: StreamerManager Actor</p>
+
+<div class="section">
+  <h3>Các thành phần mới</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:12px">
+    <div style="padding:16px;background:rgba(99,102,241,0.15);border-radius:8px;border:1px solid rgba(99,102,241,0.4)">
+      <div class="label" style="color:#818cf8">Backend</div>
+      <h3 style="margin:8px 0 4px">StreamerManager</h3>
+      <p style="font-size:0.85em">Actor Tokio nhận commands qua mpsc channel. Owns JoinSet + shutdown senders. Quản lý lifecycle của từng Streamer task.</p>
+    </div>
+    <div style="padding:16px;background:rgba(16,185,129,0.15);border-radius:8px;border:1px solid rgba(16,185,129,0.4)">
+      <div class="label" style="color:#34d399">Backend</div>
+      <h3 style="margin:8px 0 4px">REST API Endpoints</h3>
+      <p style="font-size:0.85em">POST/PUT/DELETE <code>/api/cameras</code> và streams. Ghi DB, gửi command đến StreamerManager, trả về response.</p>
+    </div>
+    <div style="padding:16px;background:rgba(245,158,11,0.15);border-radius:8px;border:1px solid rgba(245,158,11,0.4)">
+      <div class="label" style="color:#fbbf24">Frontend</div>
+      <h3 style="margin:8px 0 4px">React UI /cameras</h3>
+      <p style="font-size:0.85em">Trang quản lý camera: danh sách, form thêm/sửa/xóa. Pattern giống trang /users hiện tại.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Data Flow: Add Camera</h3>
+  <div style="font-family:monospace;font-size:0.85em;background:rgba(0,0,0,0.3);padding:16px;border-radius:8px;line-height:2">
+    <span style="color:#fbbf24">React UI</span>
+    <span style="color:#6b7280"> → POST /api/cameras → </span>
+    <span style="color:#34d399">API Handler</span>
+    <span style="color:#6b7280"> → db.add_camera() + db.add_stream() → </span>
+    <span style="color:#818cf8">StreamerManager</span>
+    <br>
+    <span style="color:#6b7280;padding-left:200px">↓ StartStream(stream_id)</span>
+    <br>
+    <span style="color:#6b7280;padding-left:200px">spawn Streamer task → kết nối RTSP → ghi DB</span>
+    <br>
+    <span style="color:#34d399">API Handler</span>
+    <span style="color:#6b7280"> ← 201 Created ←</span>
+    <span style="color:#818cf8"> (không chờ streamer connect)</span>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Data Flow: Update Camera</h3>
+  <div style="font-family:monospace;font-size:0.85em;background:rgba(0,0,0,0.3);padding:16px;border-radius:8px;line-height:2">
+    <span style="color:#fbbf24">React UI</span>
+    <span style="color:#6b7280"> → PUT /api/cameras/{id} → </span>
+    <span style="color:#34d399">API Handler</span>
+    <span style="color:#6b7280"> → db.update_camera() → </span>
+    <span style="color:#818cf8">StreamerManager</span>
+    <br>
+    <span style="color:#6b7280;padding-left:220px">↓ RestartStream(stream_id)</span>
+    <br>
+    <span style="color:#6b7280;padding-left:220px">shutdown cũ → đợi task end → spawn mới</span>
+    <br>
+    <span style="color:#34d399">API Handler</span>
+    <span style="color:#6b7280"> ← 200 OK</span>
+  </div>
+</div>
+
+<div class="section">
+  <h3>StreamerManager (Rust)</h3>
+  <div style="font-family:monospace;font-size:0.82em;background:rgba(0,0,0,0.3);padding:16px;border-radius:8px;color:#e2e8f0;line-height:1.7">
+    <span style="color:#818cf8">enum</span> StreamerCommand {<br>
+    &nbsp;&nbsp;StartStream(<span style="color:#fbbf24">i32</span>),&nbsp;&nbsp;&nbsp;<span style="color:#4b5563">// stream_id</span><br>
+    &nbsp;&nbsp;StopStream(<span style="color:#fbbf24">i32</span>),&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#4b5563">// stream_id</span><br>
+    &nbsp;&nbsp;RestartStream(<span style="color:#fbbf24">i32</span>), <span style="color:#4b5563">// stream_id</span><br>
+    }<br><br>
+    <span style="color:#818cf8">struct</span> StreamerManager {<br>
+    &nbsp;&nbsp;db: Arc&lt;db::Database&gt;,<br>
+    &nbsp;&nbsp;env: &amp;<span style="color:#fbbf24">'static</span> Environment,<br>
+    &nbsp;&nbsp;rx: mpsc::Receiver&lt;StreamerCommand&gt;,<br>
+    &nbsp;&nbsp;running: HashMap&lt;<span style="color:#fbbf24">i32</span>, base::shutdown::Sender&gt;,<br>
+    &nbsp;&nbsp;join_set: JoinSet&lt;()&gt;,<br>
+    }
+  </div>
+</div>
+
+<div style="margin-top:8px;padding:14px;background:rgba(255,255,255,0.04);border-radius:8px;border-left:3px solid #6b7280">
+  <p style="margin:0;font-size:0.9em">API Handler nhận <code>mpsc::Sender&lt;StreamerCommand&gt;</code> qua <code>web::Service</code> — không cần share state khác. StreamerManager chạy trong task riêng, nhận lệnh và quản lý toàn bộ lifecycle.</p>
+</div>

@@ -1,0 +1,127 @@
+<h2>React UI — Trang /cameras</h2>
+<p class="subtitle">Mockup giao diện quản lý camera, tích hợp vào moonfire nav hiện tại</p>
+
+<div class="section">
+  <h3>Layout tổng thể</h3>
+  <div class="mockup">
+    <div class="mockup-header">moonfire-nvr — /cameras</div>
+    <div class="mockup-body" style="padding:0">
+      <!-- Nav bar -->
+      <div class="mock-nav" style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px">
+        <span>🎥 moonfire-nvr</span>
+        <span style="display:flex;gap:20px;font-size:0.85em">
+          <span>Live</span>
+          <span>Recordings</span>
+          <span style="color:#818cf8;font-weight:600;border-bottom:2px solid #818cf8">Cameras</span>
+          <span>Users</span>
+        </span>
+      </div>
+      <!-- Main content -->
+      <div style="padding:16px">
+        <!-- Header row -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h3 style="margin:0">Cameras (3)</h3>
+          <button class="mock-button" style="background:#818cf8;color:#fff;border:none;padding:8px 16px;border-radius:6px;cursor:pointer">+ Add Camera</button>
+        </div>
+        <!-- Camera list -->
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <!-- Camera row 1 -->
+          <div style="background:rgba(255,255,255,0.06);border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:16px">
+            <div style="width:10px;height:10px;border-radius:50%;background:#4ade80;flex-shrink:0"></div>
+            <div style="flex:1">
+              <div style="font-weight:600">front-door</div>
+              <div style="font-size:0.8em;color:#9ca3af">192.168.1.10 · main: record · sub: off</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="mock-button" style="padding:4px 12px;font-size:0.8em">Edit</button>
+              <button class="mock-button" style="padding:4px 12px;font-size:0.8em;border-color:#f87171;color:#f87171">Delete</button>
+            </div>
+          </div>
+          <!-- Camera row 2 -->
+          <div style="background:rgba(255,255,255,0.06);border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:16px">
+            <div style="width:10px;height:10px;border-radius:50%;background:#4ade80;flex-shrink:0"></div>
+            <div style="flex:1">
+              <div style="font-weight:600">back-yard</div>
+              <div style="font-size:0.8em;color:#9ca3af">192.168.1.11 · main: record · sub: record</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="mock-button" style="padding:4px 12px;font-size:0.8em">Edit</button>
+              <button class="mock-button" style="padding:4px 12px;font-size:0.8em;border-color:#f87171;color:#f87171">Delete</button>
+            </div>
+          </div>
+          <!-- Camera row 3 - disconnected -->
+          <div style="background:rgba(255,255,255,0.06);border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:16px">
+            <div style="width:10px;height:10px;border-radius:50%;background:#f87171;flex-shrink:0"></div>
+            <div style="flex:1">
+              <div style="font-weight:600">garage</div>
+              <div style="font-size:0.8em;color:#f87171">Disconnected · 192.168.1.12 · main: record</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="mock-button" style="padding:4px 12px;font-size:0.8em">Edit</button>
+              <button class="mock-button" style="padding:4px 12px;font-size:0.8em;border-color:#f87171;color:#f87171">Delete</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Add / Edit Camera Dialog</h3>
+  <div class="mockup">
+    <div class="mockup-header">Add Camera</div>
+    <div class="mockup-body" style="padding:16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <div class="label" style="margin-bottom:4px">Short Name *</div>
+          <input class="mock-input" value="front-door" style="width:100%;box-sizing:border-box">
+        </div>
+        <div>
+          <div class="label" style="margin-bottom:4px">ONVIF Base URL</div>
+          <input class="mock-input" value="http://192.168.1.10" style="width:100%;box-sizing:border-box">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div>
+          <div class="label" style="margin-bottom:4px">Username</div>
+          <input class="mock-input" value="admin" style="width:100%;box-sizing:border-box">
+        </div>
+        <div>
+          <div class="label" style="margin-bottom:4px">Password</div>
+          <input class="mock-input" type="password" value="secret" style="width:100%;box-sizing:border-box">
+        </div>
+      </div>
+      <div>
+        <div class="label" style="margin-bottom:8px">Streams</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <!-- Stream row -->
+          <div style="background:rgba(255,255,255,0.04);border-radius:6px;padding:10px 12px">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+              <span style="font-weight:600;font-size:0.85em;color:#818cf8">MAIN</span>
+              <select class="mock-input" style="flex:1;padding:4px 8px;font-size:0.85em">
+                <option>Record</option><option>Off</option>
+              </select>
+            </div>
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:8px">
+              <input class="mock-input" placeholder="RTSP URL" value="rtsp://192.168.1.10/stream1" style="font-size:0.82em">
+              <select class="mock-input" style="font-size:0.82em"><option>TCP</option><option>UDP</option></select>
+            </div>
+          </div>
+          <div style="background:rgba(255,255,255,0.04);border-radius:6px;padding:10px 12px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <span style="font-weight:600;font-size:0.85em;color:#6b7280">SUB</span>
+              <select class="mock-input" style="flex:1;padding:4px 8px;font-size:0.85em">
+                <option>Off</option><option>Record</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:4px">
+        <button class="mock-button">Cancel</button>
+        <button class="mock-button" style="background:#818cf8;color:#fff;border:none">Save</button>
+      </div>
+    </div>
+  </div>
+</div>

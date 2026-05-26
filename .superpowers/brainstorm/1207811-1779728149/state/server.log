@@ -1,0 +1,6 @@
+{"type":"server-started","port":52099,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:52099","screen_dir":"/home/ai/dev/moonfire-nvr/.superpowers/brainstorm/1207811-1779728149/content","state_dir":"/home/ai/dev/moonfire-nvr/.superpowers/brainstorm/1207811-1779728149/state"}
+{"type":"screen-added","file":"/home/ai/dev/moonfire-nvr/.superpowers/brainstorm/1207811-1779728149/content/approaches.html"}
+{"type":"screen-added","file":"/home/ai/dev/moonfire-nvr/.superpowers/brainstorm/1207811-1779728149/content/architecture.html"}
+{"type":"screen-added","file":"/home/ai/dev/moonfire-nvr/.superpowers/brainstorm/1207811-1779728149/content/ui-cameras.html"}
+{"type":"screen-added","file":"/home/ai/dev/moonfire-nvr/.superpowers/brainstorm/1207811-1779728149/content/stitch-cameras.html"}
+{"type":"server-stopped","reason":"idle timeout"}

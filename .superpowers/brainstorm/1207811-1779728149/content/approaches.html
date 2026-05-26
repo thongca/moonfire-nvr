@@ -1,0 +1,69 @@
+<h2>3 Approaches: Realtime Camera Management</h2>
+<p class="subtitle">Chọn kiến trúc phù hợp nhất với yêu cầu của bạn</p>
+
+<div class="options">
+
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>StreamerManager Actor <span style="color:#4ade80;font-size:0.8em;margin-left:8px;">★ Recommended</span></h3>
+      <p>Tách việc quản lý streamer thành một actor riêng nhận lệnh qua channel. API endpoint ghi DB xong gửi command <code>Start/Stop/Restart(stream_id)</code> đến manager. Manager owns JoinSet và shutdown senders.</p>
+      <div class="pros-cons" style="margin-top:12px">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Idiomatic Tokio — không shared mutable state</li>
+          <li>Thay đổi có hiệu lực ngay lập tức</li>
+          <li>Dễ test riêng lẻ</li>
+          <li>Graceful shutdown từng stream</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>Phức tạp hơn — thêm channel + actor loop</li>
+          <li>Cần refactor <code>inner()</code> đáng kể</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Periodic Reconciliation Loop</h3>
+      <p>Một background task poll DB mỗi 5–10 giây, so sánh trạng thái mong muốn vs đang chạy, tự động start/stop streamer khi phát hiện thay đổi. Kiểu Kubernetes controller.</p>
+      <div class="pros-cons" style="margin-top:12px">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Đơn giản nhất — không cần channel</li>
+          <li>Tự heal nếu streamer crash</li>
+          <li>API chỉ cần ghi DB, không cần biết runtime</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>Delay 5–10s trước khi thay đổi có hiệu lực</li>
+          <li>Poll DB liên tục kể cả khi không có gì thay đổi</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Direct JoinSet Manipulation</h3>
+      <p>API endpoint trực tiếp spawn/abort task trong JoinSet thông qua <code>Arc&lt;Mutex&lt;JoinSet&gt;&gt;</code> và một map <code>stream_id → AbortHandle</code> được share giữa handler và server loop.</p>
+      <div class="pros-cons" style="margin-top:12px">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Thay đổi tức thì</li>
+          <li>Ít abstraction nhất</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>Shared mutable state — dễ race condition</li>
+          <li>Abort thô — không graceful shutdown</li>
+          <li>Khó test</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div style="margin-top:24px;padding:16px;background:rgba(255,255,255,0.05);border-radius:8px;border-left:3px solid #4ade80">
+  <p class="label">Recommendation</p>
+  <p>Approach <strong>A (StreamerManager Actor)</strong> là lựa chọn tốt nhất — sạch, an toàn với async, và phù hợp với pattern của Tokio. Thêm tính năng sau này cũng dễ hơn.</p>
+</div>

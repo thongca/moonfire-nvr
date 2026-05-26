@@ -292,30 +292,45 @@ async fn inner(
     // Start a StreamerManager + initial streamers for each stream in record mode.
     let (streamer_tx, streamer_rx) = mpsc::channel::<StreamerCommand>(64);
     let manager_handle: Option<tokio::task::JoinHandle<()>> = if !read_only {
-        let l = db.lock();
-        let env: &'static streamer::Environment<'static, clock::RealClocks> =
+        let env: &'static streamer::Environment<'static, clock::RealClocks> = {
+            let l = db.lock();
             Box::leak(Box::new(streamer::Environment {
                 clocks: db.clocks(),
                 sample_entries: l.sample_entries().clone(),
                 opener: &crate::stream::OPENER,
                 shutdown_rx: shutdown_rx.clone(),
-            }));
+            }))
+        }; // l dropped here
         let mut mgr = StreamerManager::new(db.clone(), env, streamer_rx);
-        // Pre-seed: start all streams that are currently in record mode.
-        for (stream_id, stream) in l.streams_by_id() {
-            let locked = stream.inner.lock();
-            if locked.config.mode == db::json::STREAM_MODE_RECORD {
-                if locked.sample_file_dir.is_none() {
-                    warn!(
-                        "Stream {} set to record but has no sample file dir; skipping",
-                        locked.id
-                    );
-                } else {
-                    mgr.seed_stream(*stream_id);
-                }
-            }
+        // Collect stream IDs that need seeding first (inner locks drop at end of each
+        // filter_map closure), then call seed_stream without any lock held.
+        // seed_stream → do_start_stream acquires db.lock(), which cannot be held
+        // concurrently with a stream.inner.lock() due to lock ordering.
+        let streams_to_seed: Vec<i32> = {
+            let l = db.lock();
+            l.streams_by_id()
+                .iter()
+                .filter_map(|(&stream_id, stream)| {
+                    let locked = stream.inner.lock();
+                    if locked.config.mode == db::json::STREAM_MODE_RECORD {
+                        if locked.sample_file_dir.is_none() {
+                            warn!(
+                                "Stream {} set to record but has no sample file dir; skipping",
+                                locked.id
+                            );
+                            None
+                        } else {
+                            Some(stream_id) // locked dropped here
+                        }
+                    } else {
+                        None // locked dropped here
+                    }
+                })
+                .collect()
+        }; // l dropped here
+        for stream_id in streams_to_seed {
+            mgr.seed_stream(stream_id);
         }
-        drop(l);
         Some(
             tokio::task::Builder::new()
                 .name("streamer-manager")
