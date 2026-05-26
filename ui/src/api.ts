@@ -154,6 +154,7 @@ async function json<T>(
 export interface ToplevelResponse {
   timeZoneName: string;
   cameras: Camera[];
+  serverVersion: string;
 
   // This is not part of the wire API; it's synthesized in `toplevel`.
   streams: Map<number, Stream>;
@@ -490,11 +491,11 @@ export function recordingUrl(
 
 export interface StreamAdminEntry {
   id: number;
-  type_: string;
+  type: string;
   mode: string;
-  rtspUrl?: string;
+  rtspUrl?: string | null;
   rtspTransport: string;
-  sampleFileDirId?: number;
+  sampleFileDirId?: number | null;
 }
 
 export interface CameraAdminEntry {

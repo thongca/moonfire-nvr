@@ -28,8 +28,9 @@ import { Routes, Route, Navigate } from "react-router";
 import LiveActivity from "./Live";
 import UsersActivity from "./Users";
 import CamerasActivity from "./Cameras";
+import SettingsActivity from "./Settings";
 import ChangePassword from "./ChangePassword";
-import Header from "./components/Header";
+import AppShell from "./components/AppShell";
 
 export type LoginState =
   | "unknown"
@@ -110,20 +111,28 @@ function App() {
     };
   }, [fetchSeq]);
 
-  const Frame = ({
-    activityMenuPart,
-    children,
-  }: FrameProps): React.JSX.Element => {
+  const Frame = ({ activityMenuPart, children }: FrameProps): React.JSX.Element => {
     return (
       <>
-        <Header
-          loginState={loginState}
-          logout={logout}
-          setChangePasswordOpen={setChangePasswordOpen}
+        <AppShell
           activityMenuPart={activityMenuPart}
-          setLoginState={setLoginState}
-          toplevel={toplevel}
-        />
+          loginState={loginState}
+          onLogout={logout}
+          onRequestLogin={() => setLoginState("user-requested-login")}
+          onChangePassword={() => setChangePasswordOpen(true)}
+        >
+          {error !== null && (
+            <Container>
+              <h2>Error querying server</h2>
+              <pre>{error.message}</pre>
+              <p>
+                You may find more information in the Javascript console. Try
+                reloading the page once you believe the problem is resolved.
+              </p>
+            </Container>
+          )}
+          {children}
+        </AppShell>
         <Login
           onSuccess={onLoginSuccess}
           open={
@@ -143,17 +152,6 @@ function App() {
             handleClose={() => setChangePasswordOpen(false)}
           />
         )}
-        {error !== null && (
-          <Container>
-            <h2>Error querying server</h2>
-            <pre>{error.message}</pre>
-            <p>
-              You may find more information in the Javascript console. Try
-              reloading the page once you believe the problem is resolved.
-            </p>
-          </Container>
-        )}
-        {children}
       </>
     );
   };
@@ -189,6 +187,16 @@ function App() {
           <CamerasActivity
             Frame={Frame}
             csrf={toplevel!.user?.session?.csrf}
+          />
+        }
+      />
+      <Route
+        path="settings"
+        element={
+          <SettingsActivity
+            Frame={Frame}
+            csrf={toplevel!.user?.session?.csrf}
+            serverVersion={toplevel.serverVersion}
           />
         }
       />
