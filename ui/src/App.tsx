@@ -24,6 +24,7 @@ import * as api from "./api";
 import Login from "./Login";
 import { useSnackbars } from "./snackbars";
 import ListActivity from "./List";
+import DashboardActivity from "./Dashboard";
 import { Routes, Route, Navigate } from "react-router";
 import LiveActivity from "./Live";
 import UsersActivity from "./Users";
@@ -163,6 +164,10 @@ function App() {
     <Routes>
       <Route
         path=""
+        element={<DashboardActivity Frame={Frame} />}
+      />
+      <Route
+        path="archive"
         element={
           <ListActivity
             toplevel={toplevel}
