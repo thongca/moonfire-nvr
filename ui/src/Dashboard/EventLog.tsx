@@ -160,6 +160,7 @@ export default function EventLog({ cameras }: Props) {
               startTime90k: r.startTime90k,
             }));
           }
+          if (result.status === "aborted") return [];
           return null;
         },
       ),
@@ -260,7 +261,12 @@ export default function EventLog({ cameras }: Props) {
             No recent recordings
           </Typography>
         ) : (
-          events.map((evt, i) => <EventRow key={i} event={evt} />)
+          events.map((evt) => (
+            <EventRow
+              key={`${evt.cameraName}-${evt.startTime90k}`}
+              event={evt}
+            />
+          ))
         )}
       </Box>
 
