@@ -2,7 +2,7 @@
 // Copyright (C) 2021 The Moonfire NVR Authors; see AUTHORS and LICENSE.txt.
 // SPDX-License-Identifier: GPL-v3.0-or-later WITH GPL-3.0-linking-exception.
 
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import * as api from "../api";
 import { useSnackbars } from "../snackbars";
 import Button from "@mui/material/Button";
@@ -14,10 +14,18 @@ import TextField from "@mui/material/TextField";
 import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
 import Box from "@mui/material/Box";
+import ButtonBase from "@mui/material/ButtonBase";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
+import Chip from "@mui/material/Chip";
+import Divider from "@mui/material/Divider";
+import Grid from "@mui/material/Grid";
+import Paper from "@mui/material/Paper";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
+import { shellTokens } from "../theme";
 
 const STREAM_TYPES = ["main", "sub", "ext"] as const;
 type StreamTypeStr = (typeof STREAM_TYPES)[number];
@@ -35,6 +43,112 @@ const defaultStreamForm = (): StreamForm => ({
   rtspTransport: "",
   sampleFileDirId: "",
 });
+
+const streamLabel = (type_: StreamTypeStr) => type_.toUpperCase();
+
+const modeLabel = (mode: string) => (mode === "record" ? "Record" : "Off");
+
+const transportLabel = (transport: string) => {
+  if (transport === "tcp") return "TCP";
+  if (transport === "udp") return "UDP";
+  return "Auto";
+};
+
+function DialogSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <Stack spacing={1.5}>
+      <Typography variant="overline" component="h3" color="text.secondary">
+        {title}
+      </Typography>
+      {children}
+    </Stack>
+  );
+}
+
+function StreamSummaryCard({
+  type_,
+  stream,
+  selected,
+  onSelect,
+}: {
+  type_: StreamTypeStr;
+  stream: StreamForm;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const hasRtsp = stream.rtspUrl.trim().length > 0;
+
+  return (
+    <ButtonBase
+      component="div"
+      data-testid={`stream-summary-${type_}`}
+      onClick={onSelect}
+      aria-pressed={selected}
+      aria-label={`Select ${streamLabel(type_)} stream`}
+      sx={{
+        textAlign: "left",
+        width: "100%",
+        borderRadius: 1,
+        "&:focus-visible": {
+          boxShadow: `0 0 0 2px rgba(255, 87, 34, 0.28)`,
+        },
+      }}
+    >
+      <Paper
+        sx={{
+          background: selected
+            ? `linear-gradient(180deg, rgba(255, 87, 34, 0.16), ${shellTokens.surface.raised})`
+            : shellTokens.surface.raised,
+          border: `1px solid ${
+            selected
+              ? shellTokens.primary.fireOrange
+              : shellTokens.border.subtle
+          }`,
+          borderRadius: 1,
+          color: "text.primary",
+          p: 1.5,
+          width: "100%",
+        }}
+      >
+        <Stack spacing={1}>
+          <Stack
+            direction="row"
+            justifyContent="space-between"
+            alignItems="center"
+          >
+            <Typography
+              variant="overline"
+              sx={{
+                color: selected
+                  ? shellTokens.primary.fireOrange
+                  : "text.secondary",
+              }}
+            >
+              {streamLabel(type_)}
+            </Typography>
+            <Chip
+              size="small"
+              label={modeLabel(stream.mode)}
+              color={stream.mode === "record" ? "primary" : "default"}
+            />
+          </Stack>
+          <Typography variant="body2" color="text.secondary">
+            {hasRtsp ? "RTSP configured" : "No RTSP URL"}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {transportLabel(stream.rtspTransport)}
+          </Typography>
+        </Stack>
+      </Paper>
+    </ButtonBase>
+  );
+}
 
 interface Props {
   open: boolean;
@@ -192,117 +306,199 @@ export default function AddEditDialog({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>
-        {isEdit ? `Edit Camera — ${camera!.shortName}` : "Add Camera"}
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle sx={{ pb: 1 }}>
+        <Typography variant="h5" component="div" sx={{ fontWeight: 700 }}>
+          {isEdit ? `Edit Camera — ${camera!.shortName}` : "Add Camera"}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Configure identity, connection, and stream routing
+        </Typography>
       </DialogTitle>
       <DialogContent
-        sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}
+        sx={{ display: "flex", flexDirection: "column", gap: 3, pt: 1 }}
       >
-        <TextField
-          label="Short Name"
-          value={shortName}
-          onChange={(e) => setShortName(e.target.value)}
-          required
-          size="small"
-          fullWidth
-        />
-        <TextField
-          label="Description"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          size="small"
-          fullWidth
-        />
-        <TextField
-          label="ONVIF Base URL"
-          value={onvifBaseUrl}
-          onChange={(e) => setOnvifBaseUrl(e.target.value)}
-          placeholder="http://192.168.1.10"
-          size="small"
-          fullWidth
-        />
-        <TextField
-          label="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          size="small"
-          fullWidth
-        />
-        <TextField
-          label="Password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder={isEdit ? "(leave blank to keep)" : ""}
-          size="small"
-          fullWidth
-        />
-        <Box>
-          <Tabs
-            value={activeStream}
-            onChange={(_, v: StreamTypeStr) => setActiveStream(v)}
-            variant="fullWidth"
-          >
+        <DialogSection title="Camera Identity">
+          <Grid container spacing={1.5}>
+            <Grid size={{ xs: 12, md: 5 }}>
+              <TextField
+                label="Short Name"
+                value={shortName}
+                onChange={(e) => setShortName(e.target.value)}
+                required
+                size="small"
+                fullWidth
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 7 }}>
+              <TextField
+                label="Description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                size="small"
+                fullWidth
+              />
+            </Grid>
+          </Grid>
+        </DialogSection>
+
+        <Divider />
+
+        <DialogSection title="Connection">
+          <Grid container spacing={1.5}>
+            <Grid size={{ xs: 12 }}>
+              <TextField
+                label="ONVIF Base URL"
+                value={onvifBaseUrl}
+                onChange={(e) => setOnvifBaseUrl(e.target.value)}
+                placeholder="http://192.168.1.10"
+                size="small"
+                fullWidth
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                label="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                size="small"
+                fullWidth
+              />
+            </Grid>
+            <Grid size={{ xs: 12, md: 6 }}>
+              <TextField
+                label="Password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={isEdit ? "(leave blank to keep)" : ""}
+                size="small"
+                fullWidth
+              />
+            </Grid>
+          </Grid>
+        </DialogSection>
+
+        <Divider />
+
+        <DialogSection title="Stream Routing">
+          <Grid container spacing={1.5}>
             {STREAM_TYPES.map((t) => (
-              <Tab key={t} label={t.toUpperCase()} value={t} />
+              <Grid key={t} size={{ xs: 12, sm: 4 }}>
+                <StreamSummaryCard
+                  type_={t}
+                  stream={streams[t]}
+                  selected={activeStream === t}
+                  onSelect={() => setActiveStream(t)}
+                />
+              </Grid>
             ))}
-          </Tabs>
-          {STREAM_TYPES.map((t) => (
-            <Box
-              key={t}
-              role="tabpanel"
-              hidden={activeStream !== t}
-              sx={{ pt: 2, display: "flex", flexDirection: "column", gap: 1.5 }}
+          </Grid>
+
+          <Box>
+            <Tabs
+              value={activeStream}
+              onChange={(_, v: StreamTypeStr) => setActiveStream(v)}
+              variant="fullWidth"
+              sx={{
+                borderBottom: `1px solid ${shellTokens.border.subtle}`,
+                minHeight: 40,
+                "& .MuiTab-root": { minHeight: 40 },
+              }}
             >
-              <FormControl size="small" fullWidth>
-                <InputLabel>Mode</InputLabel>
-                <Select
-                  value={streams[t].mode}
-                  label="Mode"
-                  onChange={(e) => updateStream(t, "mode", e.target.value)}
-                >
-                  <MenuItem value="">Off</MenuItem>
-                  <MenuItem value="record">Record</MenuItem>
-                </Select>
-              </FormControl>
-              <TextField
-                label="RTSP URL"
-                value={streams[t].rtspUrl}
-                onChange={(e) => updateStream(t, "rtspUrl", e.target.value)}
-                placeholder="rtsp://192.168.1.10/stream1"
-                size="small"
-                fullWidth
-              />
-              <FormControl size="small" fullWidth>
-                <InputLabel>Transport</InputLabel>
-                <Select
-                  value={streams[t].rtspTransport}
-                  label="Transport"
-                  onChange={(e) =>
-                    updateStream(t, "rtspTransport", e.target.value)
-                  }
-                >
-                  <MenuItem value="">Auto</MenuItem>
-                  <MenuItem value="tcp">TCP</MenuItem>
-                  <MenuItem value="udp">UDP</MenuItem>
-                </Select>
-              </FormControl>
-              <TextField
-                label="Sample File Dir ID"
-                value={streams[t].sampleFileDirId}
-                onChange={(e) =>
-                  updateStream(t, "sampleFileDirId", e.target.value)
-                }
-                size="small"
-                type="number"
-                fullWidth
-              />
-            </Box>
-          ))}
-        </Box>
+              {STREAM_TYPES.map((t) => (
+                <Tab
+                  key={t}
+                  id={`stream-tab-${t}`}
+                  aria-controls={`stream-panel-${t}`}
+                  label={streamLabel(t)}
+                  value={t}
+                />
+              ))}
+            </Tabs>
+            {STREAM_TYPES.map((t) => (
+              <Box
+                key={t}
+                id={`stream-panel-${t}`}
+                role="tabpanel"
+                aria-labelledby={`stream-tab-${t}`}
+                hidden={activeStream !== t}
+                sx={{ pt: 2, display: activeStream === t ? "block" : "none" }}
+              >
+                <Grid container spacing={1.5}>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <FormControl size="small" fullWidth>
+                      <InputLabel>Mode</InputLabel>
+                      <Select
+                        value={streams[t].mode}
+                        label="Mode"
+                        onChange={(e) =>
+                          updateStream(t, "mode", e.target.value)
+                        }
+                      >
+                        <MenuItem value="">Off</MenuItem>
+                        <MenuItem value="record">Record</MenuItem>
+                      </Select>
+                    </FormControl>
+                    <Typography variant="caption" color="text.secondary">
+                      Record enables this stream for capture.
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 8 }}>
+                    <TextField
+                      label="RTSP URL"
+                      value={streams[t].rtspUrl}
+                      onChange={(e) =>
+                        updateStream(t, "rtspUrl", e.target.value)
+                      }
+                      placeholder="rtsp://192.168.1.10/stream1"
+                      size="small"
+                      fullWidth
+                    />
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <FormControl size="small" fullWidth>
+                      <InputLabel>Transport</InputLabel>
+                      <Select
+                        value={streams[t].rtspTransport}
+                        label="Transport"
+                        onChange={(e) =>
+                          updateStream(t, "rtspTransport", e.target.value)
+                        }
+                      >
+                        <MenuItem value="">Auto</MenuItem>
+                        <MenuItem value="tcp">TCP</MenuItem>
+                        <MenuItem value="udp">UDP</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid size={{ xs: 12, md: 4 }}>
+                    <TextField
+                      label="Sample File Dir ID"
+                      value={streams[t].sampleFileDirId}
+                      onChange={(e) =>
+                        updateStream(t, "sampleFileDirId", e.target.value)
+                      }
+                      helperText="Blank uses the server default."
+                      size="small"
+                      type="number"
+                      fullWidth
+                    />
+                  </Grid>
+                </Grid>
+              </Box>
+            ))}
+          </Box>
+        </DialogSection>
       </DialogContent>
-      <DialogActions>
+      <DialogActions
+        sx={{
+          borderTop: `1px solid ${shellTokens.border.subtle}`,
+          position: "sticky",
+          bottom: 0,
+          background: shellTokens.surface.panel,
+        }}
+      >
         <Button onClick={onClose} disabled={saving}>
           Cancel
         </Button>
