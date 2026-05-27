@@ -3,3 +3,5 @@
 /release-*
 /server/target
 .idea
+/.claude/
+/node_modules/
