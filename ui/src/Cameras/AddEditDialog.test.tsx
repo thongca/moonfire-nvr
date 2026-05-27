@@ -46,6 +46,38 @@ test("renders sectioned command dialog stream summaries", () => {
   }
 });
 
+test("switches stream form when a summary card is selected", async () => {
+  const user = userEvent.setup();
+  renderAddDialog();
+
+  await user.click(screen.getByTestId("stream-summary-sub"));
+
+  expect(screen.getByRole("tab", { name: "SUB", selected: true }))
+    .toBeInTheDocument();
+  await user.type(screen.getByLabelText("RTSP URL"), "rtsp://camera/sub");
+  expect(within(screen.getByTestId("stream-summary-sub")).getByText("RTSP configured"))
+    .toBeInTheDocument();
+  expect(within(screen.getByTestId("stream-summary-main")).getByText("No RTSP URL"))
+    .toBeInTheDocument();
+});
+
+test("updates the active stream summary from form edits", async () => {
+  const user = userEvent.setup();
+  renderAddDialog();
+
+  const mainSummary = screen.getByTestId("stream-summary-main");
+  expect(within(mainSummary).getByText("Off")).toBeInTheDocument();
+  expect(within(mainSummary).getByText("Auto")).toBeInTheDocument();
+
+  await user.click(screen.getByLabelText("Mode"));
+  await user.click(screen.getByRole("option", { name: "Record" }));
+  expect(within(mainSummary).getByText("Record")).toBeInTheDocument();
+
+  await user.click(screen.getByLabelText("Transport"));
+  await user.click(screen.getByRole("option", { name: "TCP" }));
+  expect(within(mainSummary).getByText("TCP")).toBeInTheDocument();
+});
+
 test("creates camera then saves configured main stream", async () => {
   const user = userEvent.setup();
   let createBody: any = null;
