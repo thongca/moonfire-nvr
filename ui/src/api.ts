@@ -541,8 +541,12 @@ export async function getCamerasAdmin(init: RequestInit) {
   return await json<GetCamerasAdminResponse>("/api/cameras", init);
 }
 
+export interface PostCameraResponse {
+  cameraId: number;
+}
+
 export async function createCamera(req: PostCameraRequest, init: RequestInit) {
-  return await myfetch("/api/cameras", {
+  return await json<PostCameraResponse>("/api/cameras", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),

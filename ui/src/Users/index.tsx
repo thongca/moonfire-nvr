@@ -13,6 +13,8 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow, { TableRowProps } from "@mui/material/TableRow";
+import Box from "@mui/material/Box";
+import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
 import { useEffect, useState } from "react";
 import * as api from "../api";
@@ -32,6 +34,7 @@ interface Props {
 interface RowProps extends TableRowProps {
   userId: React.ReactNode;
   userName: React.ReactNode;
+  permissions?: React.ReactNode;
   gutter?: React.ReactNode;
 }
 
@@ -41,13 +44,31 @@ interface More {
   anchor: HTMLElement;
 }
 
-const Row = ({ userId, userName, gutter, ...rest }: RowProps) => (
+const Row = ({ userId, userName, permissions, gutter, ...rest }: RowProps) => (
   <TableRow {...rest}>
     <TableCell align="right">{userId}</TableCell>
     <TableCell>{userName}</TableCell>
+    <TableCell>{permissions}</TableCell>
     <TableCell>{gutter}</TableCell>
   </TableRow>
 );
+
+const PERMISSIONS = [
+  ["adminUsers", "Admin users"],
+  ["readCameraConfigs", "Read camera configs"],
+  ["updateSignals", "Update signals"],
+  ["viewVideo", "View video"],
+] as const;
+
+function PermissionChips({ permissions }: { permissions?: api.Permissions }) {
+  return (
+    <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
+      {PERMISSIONS.filter(([key]) => permissions?.[key]).map(([, label]) => (
+        <Chip key={label} label={label} size="small" />
+      ))}
+    </Box>
+  );
+}
 
 const Main = ({ Frame, csrf }: Props) => {
   const [users, setUsers] = useState<
@@ -79,6 +100,7 @@ const Main = ({ Frame, csrf }: Props) => {
             <Row
               userId="id"
               userName="username"
+              permissions="permissions"
               gutter={
                 <IconButton
                   aria-label="add"
@@ -99,7 +121,7 @@ const Main = ({ Frame, csrf }: Props) => {
             )}
             {users?.status === "error" && (
               <TableRow>
-                <TableCell colSpan={3}>
+                <TableCell colSpan={4}>
                   <Alert severity="error">{users.message}</Alert>
                 </TableCell>
               </TableRow>
@@ -110,6 +132,7 @@ const Main = ({ Frame, csrf }: Props) => {
                   key={u.id}
                   userId={u.id}
                   userName={u.user.username}
+                  permissions={<PermissionChips permissions={u.user.permissions} />}
                   gutter={
                     <IconButton
                       aria-label="more"

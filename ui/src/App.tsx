@@ -23,7 +23,10 @@ import React, { useEffect, useState } from "react";
 import * as api from "./api";
 import Login from "./Login";
 import { useSnackbars } from "./snackbars";
-import ListActivity from "./List";
+import DashboardActivity from "./Dashboard";
+import SystemHealthActivity from "./SystemHealth";
+import SignalControlsActivity from "./SignalControls";
+import ArchiveActivity from "./Archive";
 import { Routes, Route, Navigate } from "react-router";
 import LiveActivity from "./Live";
 import UsersActivity from "./Users";
@@ -165,13 +168,25 @@ function App() {
     <Routes>
       <Route
         path=""
+        element={<DashboardActivity toplevel={toplevel} Frame={Frame} />}
+      />
+      <Route
+        path="archive"
         element={
-          <ListActivity
+          <ArchiveActivity
             toplevel={toplevel}
             timeZoneName={timeZoneName!}
             Frame={Frame}
           />
         }
+      />
+      <Route
+        path="signals"
+        element={<SignalControlsActivity toplevel={toplevel} Frame={Frame} />}
+      />
+      <Route
+        path="system"
+        element={<SystemHealthActivity toplevel={toplevel} Frame={Frame} />}
       />
       <Route
         path="live"

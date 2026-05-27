@@ -8,6 +8,9 @@ import List from "@mui/material/List";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
+import DashboardIcon from "@mui/icons-material/Dashboard";
+import HealthAndSafetyIcon from "@mui/icons-material/HealthAndSafety";
+import SensorsIcon from "@mui/icons-material/Sensors";
 import ListIcon from "@mui/icons-material/List";
 import PeopleIcon from "@mui/icons-material/People";
 import Videocam from "@mui/icons-material/Videocam";
@@ -60,15 +63,37 @@ export default function Header({
       >
         <List>
           <ListItemButton
-            key="list"
+            key="dashboard"
             onClick={toggleShowMenu}
             component={Link}
             to="/"
           >
             <ListItemIcon>
+              <DashboardIcon />
+            </ListItemIcon>
+            <ListItemText primary="Dashboard" />
+          </ListItemButton>
+          <ListItemButton
+            key="archive"
+            onClick={toggleShowMenu}
+            component={Link}
+            to="/archive"
+          >
+            <ListItemIcon>
               <ListIcon />
             </ListItemIcon>
-            <ListItemText primary="List view" />
+            <ListItemText primary="Archive" />
+          </ListItemButton>
+          <ListItemButton
+            key="system"
+            onClick={toggleShowMenu}
+            component={Link}
+            to="/system"
+          >
+            <ListItemIcon>
+              <HealthAndSafetyIcon />
+            </ListItemIcon>
+            <ListItemText primary="System Health" />
           </ListItemButton>
           <ListItemButton
             key="live"
@@ -81,6 +106,19 @@ export default function Header({
             </ListItemIcon>
             <ListItemText primary="Live view (experimental)" />
           </ListItemButton>
+          {toplevel?.permissions.updateSignals && (
+            <ListItemButton
+              key="signals"
+              onClick={toggleShowMenu}
+              component={Link}
+              to="/signals"
+            >
+              <ListItemIcon>
+                <SensorsIcon />
+              </ListItemIcon>
+              <ListItemText primary="Signal Controls" />
+            </ListItemButton>
+          )}
           {toplevel?.permissions.adminUsers && (
             <>
               <ListItemButton

@@ -117,6 +117,33 @@ export default function AddEditDialog({
     }));
   };
 
+  const saveStreams = async (cameraId: number) => {
+    for (const type_ of STREAM_TYPES) {
+      const sf = streams[type_];
+      const streamResp = await api.updateCameraStream(
+        cameraId,
+        type_,
+        {
+          csrf,
+          mode: sf.mode,
+          rtspUrl: sf.rtspUrl || undefined,
+          rtspTransport: sf.rtspTransport || undefined,
+          sampleFileDirId: sf.sampleFileDirId
+            ? parseInt(sf.sampleFileDirId, 10)
+            : undefined,
+        },
+        {},
+      );
+      if (streamResp.status === "error") {
+        snackbars.enqueue({
+          message: `Stream ${type_} save failed: ${streamResp.message}`,
+        });
+        return false;
+      }
+    }
+    return true;
+  };
+
   const handleSave = async () => {
     if (!shortName.trim()) {
       snackbars.enqueue({ message: "Short name is required" });
@@ -138,29 +165,7 @@ export default function AddEditDialog({
           snackbars.enqueue({ message: "Save failed: " + resp.message });
           return;
         }
-        for (const type_ of STREAM_TYPES) {
-          const sf = streams[type_];
-          const streamResp = await api.updateCameraStream(
-            camera!.id,
-            type_,
-            {
-              csrf,
-              mode: sf.mode,
-              rtspUrl: sf.rtspUrl || undefined,
-              rtspTransport: sf.rtspTransport || undefined,
-              sampleFileDirId: sf.sampleFileDirId
-                ? parseInt(sf.sampleFileDirId, 10)
-                : undefined,
-            },
-            {},
-          );
-          if (streamResp.status === "error") {
-            snackbars.enqueue({
-              message: `Stream ${type_} save failed: ${streamResp.message}`,
-            });
-            return;
-          }
-        }
+        if (!(await saveStreams(camera!.id))) return;
       } else {
         const resp = await api.createCamera(
           {
@@ -177,6 +182,8 @@ export default function AddEditDialog({
           snackbars.enqueue({ message: "Create failed: " + resp.message });
           return;
         }
+        if (resp.status === "aborted") return;
+        if (!(await saveStreams(resp.response.cameraId))) return;
       }
       onSaved();
     } finally {

@@ -95,6 +95,7 @@ export default function CamerasActivity({ Frame, csrf }: Props) {
             <TableHead>
               <TableRow>
                 <TableCell>Name</TableCell>
+                <TableCell>Credentials</TableCell>
                 <TableCell>Streams</TableCell>
                 <TableCell>Actions</TableCell>
               </TableRow>
@@ -111,6 +112,15 @@ export default function CamerasActivity({ Frame, csrf }: Props) {
                         {cam.description}
                       </Typography>
                     )}
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={
+                        cam.hasCredentials ? "Credentials saved" : "No credentials"
+                      }
+                      size="small"
+                      color={cam.hasCredentials ? "success" : "default"}
+                    />
                   </TableCell>
                   <TableCell>
                     <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>

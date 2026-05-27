@@ -60,12 +60,21 @@ const Login = ({ open, onSuccess, handleClose }: Props) => {
   const [loading, setLoading] = React.useState<api.LoginRequest | null>(null);
 
   useEffect(() => {
+    if (!open) {
+      setLoading(null);
+      setError(null);
+    }
+  }, [open]);
+
+  useEffect(() => {
     if (loading === null) {
       return;
     }
     const abort = new AbortController();
+    let settled = false;
     const send = async (signal: AbortSignal) => {
       const response = await api.login(loading, { signal });
+      settled = true;
       switch (response.status) {
         case "aborted":
           break;
@@ -87,7 +96,9 @@ const Login = ({ open, onSuccess, handleClose }: Props) => {
     };
     send(abort.signal);
     return () => {
-      abort.abort();
+      if (!settled) {
+        abort.abort();
+      }
     };
   }, [loading, onSuccess, snackbars]);
 
