@@ -2,23 +2,24 @@
 
 ## Goal
 
-Redesign the camera add/edit dialog so it feels like part of the Stitch-inspired Moonfire NVR Command Center instead of a long generic form. The dialog should make camera identity, connection credentials, and stream configuration easy to scan while preserving the existing API behavior.
+Redesign the camera add/edit dialog so it follows the actual Stitch reference instead of a long generic form. The primary source is Stitch project `17174465272393731395`, screen `56506ca7f2fa4b89b49a062518a622e7` titled `Add Camera - Moonfire NVR`, plus the project's Moonfire NVR design system. The dialog should make camera identity, connection credentials, and stream configuration easy to scan while preserving the existing API behavior.
 
 This spec covers `ui/src/Cameras/AddEditDialog.tsx` and the MAIN/SUB/EXT stream tabs. It does not redesign the entire Cameras page.
 
 ## Visual direction
 
-Match the dashboard command-center direction:
+Match the Stitch `Add Camera - Moonfire NVR` screen and project design system:
 
-- Dark utilitarian surveillance UI.
-- Fire Orange `#ff5722` for the active stream, primary action, and selected tab/card accent.
-- Compact radii, subtle borders, dense spacing, and low-shadow surfaces.
-- Technical labels can use the existing app typography; stream labels and status text should feel compact and operational.
+- Dark utilitarian surveillance UI using surface layers from the Stitch design system: base `#131313`, low/container surfaces around `#1c1b1b` / `#201f1f`, and elevated modal surfaces around `#353534`.
+- Fire Orange `#ff5722` for the active stream, primary action, selected tab/card accent, and focus emphasis.
+- Inter for form text and headings; JetBrains Mono-style treatment for compact stream labels/status metadata where practical.
+- 4px-ish radii, subtle 1px outlines instead of heavy shadows, dense 4px/8px/12px spacing, and low-glare controls.
+- Inputs should resemble the Stitch screen: dark filled fields, rounded compact corners, visible outline, and orange focus/active states.
 - Desktop dialog should be wider than the current form if needed, while remaining usable on mobile.
 
 ## Dialog structure
 
-Use a sectioned single-dialog flow rather than a multi-step wizard.
+Use a sectioned single-dialog flow rather than a multi-step wizard. Preserve the Stitch Add Camera modal feel: dense dark form, strong title, clear bottom actions, and MAIN/SUB/EXT stream navigation using orange active state.
 
 ### Header
 

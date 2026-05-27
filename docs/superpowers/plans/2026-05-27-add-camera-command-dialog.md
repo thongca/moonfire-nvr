@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Redesign the camera add/edit dialog into a sectioned Command Center dialog with stream summary cards synchronized to MAIN/SUB/EXT tabs.
+**Goal:** Redesign the camera add/edit dialog into a Stitch-matched Command Center dialog with stream summary cards synchronized to MAIN/SUB/EXT tabs.
 
-**Architecture:** Keep the work localized to `ui/src/Cameras/AddEditDialog.tsx` and its tests. Add small local helper functions/components for stream labels, summaries, and section chrome; preserve existing state shape and save calls. Use Material UI components and the existing `shellTokens` theme primitives for dark/orange styling.
+**Architecture:** Keep the work localized to `ui/src/Cameras/AddEditDialog.tsx` and its tests. Add small local helper functions/components for stream labels, summaries, and section chrome; preserve existing state shape and save calls. Use Material UI components and the existing `shellTokens` theme primitives while matching Stitch project `17174465272393731395`, screen `56506ca7f2fa4b89b49a062518a622e7` (`Add Camera - Moonfire NVR`): dark elevated modal surfaces, Fire Orange active/focus states, compact outlines, and dense form spacing.
 
 **Tech Stack:** React 19, TypeScript, Material UI v7, React Router-independent dialog UI, Vitest, Testing Library, MSW.
 
