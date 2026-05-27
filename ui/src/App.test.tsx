@@ -2,13 +2,14 @@
 // Copyright (C) 2021 The Moonfire NVR Authors; see AUTHORS and LICENSE.txt.
 // SPDX-License-Identifier: GPL-v3.0-or-later WITH GPL-3.0-linking-exception
 
-import { screen } from "@testing-library/react";
+import { cleanup, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "./App";
 import { renderWithCtx } from "./testutil";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import { beforeAll, afterAll, afterEach, expect, test } from "vitest";
+import { shellTokens, theme } from "./theme";
 
 const server = setupServer(
   http.get("/api/", () => {
@@ -16,7 +17,10 @@ const server = setupServer(
   }),
 );
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
-afterEach(() => server.resetHandlers());
+afterEach(() => {
+  cleanup();
+  server.resetHandlers();
+});
 afterAll(() => server.close());
 
 test("operator can navigate dashboard and create a camera with recording stream", async () => {
@@ -28,6 +32,7 @@ test("operator can navigate dashboard and create a camera with recording stream"
     http.get("/api/", () =>
       HttpResponse.json({
         timeZoneName: "UTC",
+        serverVersion: "0.0.0",
         cameras: [],
         permissions: {
           adminUsers: true,
@@ -51,10 +56,9 @@ test("operator can navigate dashboard and create a camera with recording stream"
     http.put("/api/cameras/99/streams/ext", () => new HttpResponse(null, { status: 204 })),
   );
 
-  renderWithCtx(<App />);
+  renderWithCtx(<App />, { initialEntries: ["/cameras"] });
 
-  await user.click(await screen.findByRole("link", { name: "Manage Cameras" }));
-  await user.click(await screen.findByRole("button", { name: "+ Add Camera" }));
+  await user.click(await screen.findByRole("button", { name: "Add Camera" }));
   await user.type(screen.getByLabelText(/Short Name/), "Front Door");
   await user.type(screen.getByLabelText(/Description/), "Entrance camera");
   await user.click(screen.getAllByRole("combobox")[0]);
@@ -73,4 +77,37 @@ test("operator can navigate dashboard and create a camera with recording stream"
     mode: "record",
     rtspUrl: "rtsp://camera/main",
   });
+});
+
+test("dashboard shell renders at root", async () => {
+  server.use(
+    http.get("/api/", () =>
+      HttpResponse.json({
+        timeZoneName: "UTC",
+        serverVersion: "0.0.0",
+        cameras: [],
+        permissions: {},
+        signals: [],
+        signalTypes: [],
+      }),
+    ),
+  );
+  renderWithCtx(<App />, { initialEntries: ["/"] });
+  expect(await screen.findByRole("link", { name: "Dashboard" })).toHaveAttribute(
+    "href",
+    "/",
+  );
+});
+
+test("shared dark theme uses stitch token values", () => {
+  expect(shellTokens.background.base).toBe("#131313");
+  expect(shellTokens.surface.panel).toBe("#1c1b1b");
+  expect(shellTokens.surface.raised).toBe("#201f1f");
+  expect(shellTokens.surface.table).toBe("#2a2a2a");
+  expect(shellTokens.surface.overlay).toBe("#353534");
+  expect(shellTokens.primary.fireOrange).toBe("#ff5722");
+
+  expect(theme.palette.background.default).toBe(shellTokens.background.base);
+  expect(theme.palette.primary.main).toBe(shellTokens.primary.fireOrange);
+  expect(theme.palette.header).toBe(shellTokens.surface.raised);
 });

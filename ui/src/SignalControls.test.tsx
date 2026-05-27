@@ -13,6 +13,7 @@ const Frame = ({ children }: FrameProps) => <>{children}</>;
 
 const TOPLEVEL: api.ToplevelResponse = {
   timeZoneName: "UTC",
+  serverVersion: "0.0.0",
   cameras: [
     {
       uuid: "front-door",

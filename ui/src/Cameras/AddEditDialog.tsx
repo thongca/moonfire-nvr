@@ -80,7 +80,7 @@ export default function AddEditDialog({
         ext: defaultStreamForm(),
       };
       for (const st of camera.streams) {
-        const key = st.type_ as StreamTypeStr;
+        const key = st.type as StreamTypeStr;
         if (STREAM_TYPES.includes(key)) {
           s[key] = {
             mode: st.mode,

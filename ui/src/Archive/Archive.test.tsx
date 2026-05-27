@@ -98,6 +98,7 @@ const REC_2: api.Recording = {
 const FAKE_TOPLEVEL: api.ToplevelResponse = {
   timeZoneName: "UTC",
   cameras: [CAMERA_A, CAMERA_B],
+  serverVersion: "test",
   streams: new Map(),
   permissions: {},
   user: undefined,

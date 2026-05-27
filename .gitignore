@@ -4,4 +4,5 @@
 /server/target
 .idea
 /.claude/
+/.playwright-mcp/
 /node_modules/

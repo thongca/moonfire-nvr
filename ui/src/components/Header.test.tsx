@@ -14,6 +14,7 @@ const TOPLEVEL: api.ToplevelResponse = {
   cameras: [],
   streams: new Map(),
   permissions: { adminUsers: true, updateSignals: true },
+  serverVersion: "0.0.0",
   user: undefined,
 };
 
@@ -38,16 +39,15 @@ test("drawer links to Archive playback page", async () => {
   expect(archiveLink).toHaveAttribute("href", "/archive");
 });
 
-test("drawer links to additional management pages", async () => {
+test("drawer links to management pages", async () => {
   const user = userEvent.setup();
   renderHeader();
 
   await user.click(screen.getByRole("button", { name: "menu" }));
 
-  await expect(screen.findByRole("link", { name: "Recordings" })).resolves.toHaveAttribute("href", "/recordings");
-  expect(screen.getByRole("link", { name: "Storage" })).toHaveAttribute("href", "/storage");
-  expect(screen.getByRole("link", { name: "Settings" })).toHaveAttribute("href", "/settings");
-  expect(screen.getByRole("link", { name: "Alerts & Events" })).toHaveAttribute("href", "/events");
-  expect(screen.getByRole("link", { name: "Reports" })).toHaveAttribute("href", "/reports");
-  expect(screen.getByRole("link", { name: "Network" })).toHaveAttribute("href", "/network");
+  expect(await screen.findByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/");
+  expect(screen.getByRole("link", { name: "System Health" })).toHaveAttribute("href", "/system");
+  expect(screen.getByRole("link", { name: "Signal Controls" })).toHaveAttribute("href", "/signals");
+  expect(screen.getByRole("link", { name: "Users" })).toHaveAttribute("href", "/users");
+  expect(screen.getByRole("link", { name: "Cameras" })).toHaveAttribute("href", "/cameras");
 });

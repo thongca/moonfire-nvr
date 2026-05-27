@@ -16,7 +16,7 @@ afterAll(() => server.close());
 
 const Frame = ({ children }: { children?: React.ReactNode }) => <>{children}</>;
 
-test("shows whether each camera has stored credentials", async () => {
+test("shows Stitch camera status and stream badges", async () => {
   server.use(
     http.get("/api/cameras", () =>
       HttpResponse.json({
@@ -26,8 +26,18 @@ test("shows whether each camera has stored credentials", async () => {
             uuid: "front-door",
             shortName: "Front Door",
             description: "Entrance camera",
+            onvifBaseUrl: "http://192.168.1.10/onvif",
             hasCredentials: true,
-            streams: [],
+            streams: [
+              {
+                id: 11,
+                type: "main",
+                mode: "record",
+                rtspUrl: "rtsp://camera/main",
+                rtspTransport: "tcp",
+                sampleFileDirId: 7,
+              },
+            ],
           },
           {
             id: 2,
@@ -44,6 +54,11 @@ test("shows whether each camera has stored credentials", async () => {
 
   renderWithCtx(<CamerasActivity Frame={Frame} csrf="csrf-token" />);
 
-  expect(await screen.findByText("Credentials saved")).toBeInTheDocument();
-  expect(screen.getByText("No credentials")).toBeInTheDocument();
+  expect(await screen.findByText("Front Door")).toBeInTheDocument();
+  expect(screen.getByText("Online")).toBeInTheDocument();
+  expect(screen.getByText("MAIN REC")).toBeInTheDocument();
+  expect(screen.getByText("192.168.1.10")).toBeInTheDocument();
+  expect(screen.getByText("Dir 7")).toBeInTheDocument();
+  expect(screen.getByText("Garage")).toBeInTheDocument();
+  expect(screen.getByText("Offline")).toBeInTheDocument();
 });
