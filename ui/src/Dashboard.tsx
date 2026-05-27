@@ -5,157 +5,388 @@
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
-import CardActions from "@mui/material/CardActions";
 import CardContent from "@mui/material/CardContent";
+import Chip from "@mui/material/Chip";
 import Container from "@mui/material/Container";
 import Grid from "@mui/material/Grid";
+import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { Link } from "react-router";
 import * as api from "./api";
 import { FrameProps } from "./App";
+import { formatBytes, formatCount } from "./format";
+import { shellTokens } from "./theme";
 
 interface Props {
   toplevel: api.ToplevelResponse;
   Frame: React.ComponentType<FrameProps>;
 }
 
-const formatCount = (count: number, singular: string, plural: string) =>
-  `${count} ${count === 1 ? singular : plural}`;
+type Camera = api.ToplevelResponse["cameras"][number];
+type Stream = NonNullable<Camera["streams"][keyof Camera["streams"]]>;
 
-const formatBytes = (bytes: number) => {
-  if (bytes < 1000) return `${bytes} bytes`;
-  return `${(bytes / 1000).toFixed(1)} KB`;
+export interface DashboardStats {
+  cameras: api.ToplevelResponse["cameras"];
+  streams: Stream[];
+  activeStreams: number;
+  storageBytes: number;
+  sampleBytes: number;
+  recordingLoadPercent: number;
+}
+
+export interface CameraHealth {
+  camera: Camera;
+  streams: Stream[];
+  activeStreams: number;
+  status: "recording" | "idle";
+}
+
+export const getStreams = (camera: Camera): Stream[] =>
+  Object.values(camera.streams).filter((stream): stream is Stream =>
+    stream !== undefined,
+  );
+
+export const getCameraHealth = (camera: Camera): CameraHealth => {
+  const streams = getStreams(camera);
+  const activeStreams = streams.filter((stream) => stream.record).length;
+
+  return {
+    camera,
+    streams,
+    activeStreams,
+    status: activeStreams > 0 ? "recording" : "idle",
+  };
 };
 
-export default function DashboardActivity({ toplevel, Frame }: Props) {
-  const streams = toplevel.cameras.flatMap((camera) =>
-    Object.values(camera.streams).filter((stream) => stream !== undefined),
-  );
+export const getDashboardStats = (
+  toplevel: api.ToplevelResponse,
+): DashboardStats => {
+  const streams = toplevel.cameras.flatMap(getStreams);
   const activeStreams = streams.filter((stream) => stream.record).length;
-  const retainedSeconds = Math.round(
-    streams.reduce((total, stream) => total + stream.totalDuration90k, 0) / 90_000,
-  );
-  const storageBytes = streams.reduce((total, stream) => total + stream.fsBytes, 0);
-  const sampleBytes = streams.reduce(
-    (total, stream) => total + stream.totalSampleFileBytes,
-    0,
-  );
 
-  const coverage = [
-    "Playback and export",
-    "Camera configuration",
-    "Stream recording control",
-    "User and permission administration",
-    "Live monitoring",
-    "System storage health",
-  ];
+  return {
+    cameras: toplevel.cameras,
+    streams,
+    activeStreams,
+    storageBytes: streams.reduce((total, stream) => total + stream.fsBytes, 0),
+    sampleBytes: streams.reduce(
+      (total, stream) => total + stream.totalSampleFileBytes,
+      0,
+    ),
+    recordingLoadPercent:
+      streams.length === 0
+        ? 0
+        : Math.round((activeStreams / streams.length) * 100),
+  };
+};
 
-  const cards = [
-    {
-      title: "Archive",
-      body: "Search recordings, play video, scrub the timeline, and export clips.",
-      action: "Open Archive",
-      to: "/archive",
-    },
-    {
-      title: "Cameras",
-      body: "Manage camera definitions, credentials, and recording streams.",
-      action: "Manage Cameras",
-      to: "/cameras",
-    },
-    {
-      title: "Users",
-      body: "Manage accounts and review granted permissions.",
-      action: "Manage Users",
-      to: "/users",
-    },
-    {
-      title: "Signal Controls",
-      body: "Review recording signal status for every camera stream.",
-      action: "Open Signal Controls",
-      to: "/signals",
-    },
-    {
-      title: "System Health",
-      body: "Review runtime, permissions, recording retention, and storage usage.",
-      action: "Open System Health",
-      to: "/system",
-    },
-    {
-      title: "Live View",
-      body: "Open the live camera view for real-time monitoring.",
-      action: "Open Live View",
-      to: "/live",
-    },
-  ];
+function MetricCard({
+  title,
+  value,
+  detail,
+  accent = false,
+}: {
+  title: string;
+  value: string;
+  detail: string;
+  accent?: boolean;
+}) {
+  return (
+    <Card
+      component="article"
+      sx={{
+        height: "100%",
+        border: `1px solid ${
+          accent ? shellTokens.primary.fireOrange : shellTokens.border.subtle
+        }`,
+        background: shellTokens.surface.raised,
+      }}
+    >
+      <CardContent>
+        <Typography variant="overline" color="text.secondary">
+          {title}
+        </Typography>
+        <Typography variant="h3" component="p" sx={{ fontWeight: 700 }}>
+          {value}
+        </Typography>
+        <Typography color="text.secondary">{detail}</Typography>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CameraFeedCard({ health }: { health: CameraHealth }) {
+  return (
+    <Card
+      data-testid={`feed-card-${health.camera.uuid}`}
+      sx={{
+        minHeight: 220,
+        border: `1px solid ${shellTokens.border.subtle}`,
+        background: `linear-gradient(180deg, ${shellTokens.surface.overlay}, ${shellTokens.surface.panel})`,
+      }}
+    >
+      <CardContent
+        sx={{ height: "100%", display: "flex", flexDirection: "column" }}
+      >
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+          sx={{ mb: 2 }}
+        >
+          <Chip
+            size="small"
+            label={health.status === "recording" ? "REC" : "IDLE"}
+            color={health.status === "recording" ? "primary" : "default"}
+          />
+          <Typography variant="caption" color="text.secondary">
+            {formatCount(
+              health.activeStreams,
+              "recording stream",
+              "recording streams",
+            )}
+          </Typography>
+        </Stack>
+        <Box
+          sx={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: `1px dashed ${shellTokens.border.subtle}`,
+            borderRadius: 1,
+            mb: 2,
+          }}
+        >
+          <Typography color="text.secondary">No recent recording</Typography>
+        </Box>
+        <Typography variant="h6" component="h3">
+          {health.camera.shortName}
+        </Typography>
+        <Typography color="text.secondary">{health.camera.description}</Typography>
+        <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+          <Button component={Link} to="/archive" size="small">
+            Open Archive
+          </Button>
+          <Button component={Link} to="/cameras" size="small">
+            Manage Camera
+          </Button>
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PriorityFeeds({ cameraHealth }: { cameraHealth: CameraHealth[] }) {
+  return (
+    <Box>
+      <Typography variant="h5" component="h2" sx={{ mb: 2, fontWeight: 700 }}>
+        Priority Feeds
+      </Typography>
+      {cameraHealth.length === 0 ? (
+        <Card sx={{ border: `1px solid ${shellTokens.border.subtle}` }}>
+          <CardContent>
+            <Typography variant="h6">No cameras configured</Typography>
+            <Typography color="text.secondary" sx={{ mb: 2 }}>
+              Add cameras to populate priority feeds.
+            </Typography>
+            <Button component={Link} to="/cameras" variant="contained">
+              Manage Cameras
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <Grid container spacing={1.5}>
+          {cameraHealth.map((health) => (
+            <Grid key={health.camera.uuid} size={{ xs: 12, md: 6 }}>
+              <CameraFeedCard health={health} />
+            </Grid>
+          ))}
+        </Grid>
+      )}
+    </Box>
+  );
+}
+
+function QuickManagement({ cameraHealth }: { cameraHealth: CameraHealth[] }) {
+  return (
+    <Card
+      data-testid="quick-management"
+      sx={{ border: `1px solid ${shellTokens.border.subtle}`, height: "100%" }}
+    >
+      <CardContent>
+        <Typography variant="h5" component="h2" sx={{ mb: 2, fontWeight: 700 }}>
+          Quick Management
+        </Typography>
+        <Stack spacing={1.5}>
+          {cameraHealth.length === 0 ? (
+            <Typography color="text.secondary">No cameras configured</Typography>
+          ) : (
+            cameraHealth.map((health) => (
+              <Box
+                key={health.camera.uuid}
+                sx={{
+                  border: `1px solid ${shellTokens.border.subtle}`,
+                  borderRadius: 1,
+                  p: 1.5,
+                }}
+              >
+                <Stack direction="row" justifyContent="space-between" spacing={1}>
+                  <Box>
+                    <Typography sx={{ fontWeight: 700 }}>
+                      {health.camera.shortName}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {health.activeStreams} active / {health.streams.length} streams
+                    </Typography>
+                    <Button
+                      component={Link}
+                      to="/cameras"
+                      size="small"
+                      sx={{ mt: 1, px: 0 }}
+                    >
+                      Manage Camera
+                    </Button>
+                  </Box>
+                  <Chip
+                    size="small"
+                    label={health.status === "recording" ? "Recording" : "Idle"}
+                    color={health.status === "recording" ? "primary" : "default"}
+                  />
+                </Stack>
+              </Box>
+            ))
+          )}
+        </Stack>
+        <Button
+          component={Link}
+          to="/cameras"
+          fullWidth
+          sx={{ mt: 2 }}
+          variant="outlined"
+        >
+          Manage All
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ActivityReport() {
+  return (
+    <Card sx={{ border: `1px solid ${shellTokens.border.subtle}` }}>
+      <CardContent>
+        <Typography variant="h5" component="h2" sx={{ mb: 1, fontWeight: 700 }}>
+          24h Activity Report
+        </Typography>
+        <Typography color="text.secondary" sx={{ mb: 2 }}>
+          Recording activity history not available yet
+        </Typography>
+        <Box
+          sx={{
+            alignItems: "center",
+            border: `1px dashed ${shellTokens.border.subtle}`,
+            borderRadius: 1,
+            display: "flex",
+            height: 96,
+            justifyContent: "center",
+            px: 2,
+            textAlign: "center",
+          }}
+        >
+          <Typography color="text.secondary">
+            No 24h recording history available
+          </Typography>
+        </Box>
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function DashboardActivity({ toplevel, Frame }: Props) {
+  const stats = getDashboardStats(toplevel);
+  const cameraHealth = stats.cameras.map(getCameraHealth);
+  let liveSync = "unavailable";
+
+  try {
+    liveSync = new Intl.DateTimeFormat("en-US", {
+      timeZone: toplevel.timeZoneName,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+      timeZoneName: "short",
+    }).format(new Date());
+  } catch {
+    liveSync = `${new Date().toISOString().slice(11, 19)} UTC`;
+  }
 
   return (
     <Frame>
-      <Container sx={{ py: 3 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          NVR Management
-        </Typography>
-        <Box sx={{ display: "flex", gap: 2, mb: 3, flexWrap: "wrap" }}>
-          <Typography>{formatCount(toplevel.cameras.length, "camera configured", "cameras configured")}</Typography>
-          <Typography>{formatCount(activeStreams, "recording stream active", "recording streams active")}</Typography>
-        </Box>
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          <Grid size={{ xs: 12, md: 6 }}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" component="h2">
-                  Recording retention
-                </Typography>
-                <Typography>{formatCount(retainedSeconds, "second retained", "seconds retained")}</Typography>
-              </CardContent>
-            </Card>
+      <Container maxWidth={false} sx={{ py: 3 }}>
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          justifyContent="space-between"
+          spacing={2}
+          sx={{ mb: 3 }}
+        >
+          <Box>
+            <Typography variant="h3" component="h1" sx={{ fontWeight: 800 }}>
+              System Overview
+            </Typography>
+            <Typography color="text.secondary">
+              Infrastructure monitoring and recording telemetry
+            </Typography>
+          </Box>
+          <Chip
+            label={`Live Sync: ${liveSync}`}
+            variant="outlined"
+            sx={{ alignSelf: { xs: "flex-start", md: "center" } }}
+          />
+        </Stack>
+
+        <Grid container spacing={1.5} sx={{ mb: 3 }}>
+          <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
+            <MetricCard
+              title="Cameras"
+              value={`${stats.cameras.length}`}
+              detail={`${stats.activeStreams} / ${stats.streams.length} recording`}
+              accent
+            />
           </Grid>
-          <Grid size={{ xs: 12, md: 6 }}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" component="h2">
-                  Storage used
-                </Typography>
-                <Typography>{formatBytes(storageBytes)} on disk</Typography>
-                <Typography color="text.secondary">
-                  {formatBytes(sampleBytes)} recorded samples
-                </Typography>
-              </CardContent>
-            </Card>
+          <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
+            <MetricCard
+              title="Recording Load"
+              value={`${stats.recordingLoadPercent}%`}
+              detail={`${stats.activeStreams} / ${stats.streams.length} recording`}
+            />
           </Grid>
-          <Grid size={{ xs: 12 }}>
-            <Card>
-              <CardContent>
-                <Typography variant="h6" component="h2">
-                  Management coverage
-                </Typography>
-                <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-                  {coverage.map((item) => (
-                    <Typography key={item}>{item}</Typography>
-                  ))}
-                </Box>
-              </CardContent>
-            </Card>
+          <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
+            <MetricCard
+              title="Storage Used"
+              value={formatBytes(stats.storageBytes)}
+              detail={`${formatBytes(stats.sampleBytes)} recorded samples`}
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
+            <MetricCard
+              title="Activity Status"
+              value="No active signals"
+              detail="Signal telemetry unavailable"
+            />
           </Grid>
         </Grid>
+
         <Grid container spacing={2}>
-          {cards.map((card) => (
-            <Grid key={card.title} size={{ xs: 12, md: 6 }}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6" component="h2">
-                    {card.title}
-                  </Typography>
-                  <Typography color="text.secondary">{card.body}</Typography>
-                </CardContent>
-                <CardActions>
-                  <Button component={Link} to={card.to}>
-                    {card.action}
-                  </Button>
-                </CardActions>
-              </Card>
-            </Grid>
-          ))}
+          <Grid size={{ xs: 12, lg: 8 }}>
+            <PriorityFeeds cameraHealth={cameraHealth} />
+          </Grid>
+          <Grid size={{ xs: 12, lg: 4 }}>
+            <QuickManagement cameraHealth={cameraHealth} />
+          </Grid>
+          <Grid size={{ xs: 12, lg: 8 }}>
+            <ActivityReport />
+          </Grid>
         </Grid>
       </Container>
     </Frame>

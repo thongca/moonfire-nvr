@@ -9,19 +9,12 @@ import Grid from "@mui/material/Grid";
 import Typography from "@mui/material/Typography";
 import * as api from "./api";
 import { FrameProps } from "./App";
+import { formatBytes, formatCount } from "./format";
 
 interface Props {
   toplevel: api.ToplevelResponse;
   Frame: React.ComponentType<FrameProps>;
 }
-
-const formatCount = (count: number, singular: string, plural: string) =>
-  `${count} ${count === 1 ? singular : plural}`;
-
-const formatBytes = (bytes: number) => {
-  if (bytes < 1000) return `${bytes} bytes`;
-  return `${(bytes / 1000).toFixed(1)} KB`;
-};
 
 export default function SystemHealthActivity({ toplevel, Frame }: Props) {
   const streams = toplevel.cameras.flatMap((camera) =>
