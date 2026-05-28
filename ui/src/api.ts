@@ -512,6 +512,40 @@ export interface GetCamerasAdminResponse {
   cameras: CameraAdminEntry[];
 }
 
+export interface SampleFileDirEntry {
+  id: number;
+  path: string;
+}
+
+export interface GetSampleFileDirsResponse {
+  sampleFileDirs: SampleFileDirEntry[];
+}
+
+export interface PostSampleFileDirRequest {
+  csrf?: string;
+  path: string;
+}
+
+export interface PostSampleFileDirResponse {
+  id: number;
+}
+
+export async function getSampleFileDirs(init: RequestInit) {
+  return await json<GetSampleFileDirsResponse>("/api/sample-file-dirs", init);
+}
+
+export async function createSampleFileDir(
+  req: PostSampleFileDirRequest,
+  init: RequestInit,
+) {
+  return await json<PostSampleFileDirResponse>("/api/sample-file-dirs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+    ...init,
+  });
+}
+
 export interface PostCameraRequest {
   csrf?: string;
   shortName: string;

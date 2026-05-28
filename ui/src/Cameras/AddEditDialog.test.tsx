@@ -26,7 +26,18 @@ const renderAddDialog = () =>
     />,
   );
 
+function mockSampleFileDirs(
+  sampleFileDirs = [{ id: 7, path: "/var/lib/moonfire-nvr/sample" }],
+) {
+  server.use(
+    http.get("/api/sample-file-dirs", () =>
+      HttpResponse.json({ sampleFileDirs }),
+    ),
+  );
+}
+
 test("renders sectioned command dialog stream summaries", () => {
+  mockSampleFileDirs();
   renderAddDialog();
 
   expect(screen.getByText("Configure identity, connection, and stream routing"))
@@ -48,6 +59,7 @@ test("renders sectioned command dialog stream summaries", () => {
 
 test("switches stream form when a summary card is selected", async () => {
   const user = userEvent.setup();
+  mockSampleFileDirs();
   renderAddDialog();
 
   await user.click(screen.getByTestId("stream-summary-sub"));
@@ -63,6 +75,7 @@ test("switches stream form when a summary card is selected", async () => {
 
 test("updates the active stream summary from form edits", async () => {
   const user = userEvent.setup();
+  mockSampleFileDirs();
   renderAddDialog();
 
   const mainSummary = screen.getByTestId("stream-summary-main");
@@ -99,6 +112,8 @@ test("creates camera then saves configured main stream", async () => {
       new HttpResponse(null, { status: 204 }),
     ),
   );
+
+  mockSampleFileDirs();
 
   renderWithCtx(
     <AddEditDialog
