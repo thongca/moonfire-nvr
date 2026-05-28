@@ -45,9 +45,26 @@ test("drawer links to management pages", async () => {
 
   await user.click(screen.getByRole("button", { name: "menu" }));
 
-  expect(await screen.findByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/");
-  expect(screen.getByRole("link", { name: "System Health" })).toHaveAttribute("href", "/system");
-  expect(screen.getByRole("link", { name: "Signal Controls" })).toHaveAttribute("href", "/signals");
-  expect(screen.getByRole("link", { name: "Users" })).toHaveAttribute("href", "/users");
-  expect(screen.getByRole("link", { name: "Cameras" })).toHaveAttribute("href", "/cameras");
+  expect(
+    await screen.findByRole("link", { name: "Dashboard" }),
+  ).toHaveAttribute("href", "/");
+  expect(
+    screen.queryByRole("link", { name: /Live view/i }),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "System Health" })).toHaveAttribute(
+    "href",
+    "/system",
+  );
+  expect(screen.getByRole("link", { name: "Signal Controls" })).toHaveAttribute(
+    "href",
+    "/signals",
+  );
+  expect(screen.getByRole("link", { name: "Users" })).toHaveAttribute(
+    "href",
+    "/users",
+  );
+  expect(screen.getByRole("link", { name: "Cameras" })).toHaveAttribute(
+    "href",
+    "/cameras",
+  );
 });

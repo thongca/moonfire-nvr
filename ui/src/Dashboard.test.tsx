@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: GPL-v3.0-or-later WITH GPL-3.0-linking-exception.
 
 import { screen, within } from "@testing-library/react";
-import { expect, test } from "vitest";
+import { http, HttpResponse } from "msw";
+import { setupServer } from "msw/node";
+import { afterAll, afterEach, beforeAll, expect, test } from "vitest";
 import DashboardActivity from "./Dashboard";
 import { formatBytes } from "./format";
 import { FrameProps } from "./App";
@@ -12,6 +14,22 @@ import type * as api from "./api";
 import type { Camera, Stream } from "./types";
 
 const Frame = ({ children }: FrameProps) => <>{children}</>;
+
+const server = setupServer(
+  http.get("/api/system/process-telemetry", () =>
+    HttpResponse.json({
+      sampledAtUnixMs: 1_000_000_000_000,
+      pid: 42,
+      memory: { status: "unavailable", reason: "not supported" },
+      io: { status: "unavailable", reason: "not supported" },
+      network: { status: "unavailable", reason: "not supported" },
+    }),
+  ),
+);
+
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
 
 function makeToplevelFixture(): api.ToplevelResponse {
   const frontDoor = {
@@ -85,78 +103,215 @@ function makeToplevelFixture(): api.ToplevelResponse {
   };
 }
 
-test("shows Dashboard Command Center overview telemetry", () => {
-  renderWithCtx(<DashboardActivity toplevel={makeToplevelFixture()} Frame={Frame} />);
+test("shows Dashboard Command Center overview telemetry", async () => {
+  renderWithCtx(
+    <DashboardActivity toplevel={makeToplevelFixture()} Frame={Frame} />,
+  );
 
-  expect(screen.getByRole("heading", { name: "System Overview" })).toBeInTheDocument();
-  expect(screen.getByText("Infrastructure monitoring and recording telemetry")).toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: "System Overview" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText("Infrastructure monitoring and recording telemetry"),
+  ).toBeInTheDocument();
   expect(screen.getByText(/Live Sync/i)).toBeInTheDocument();
 
   const camerasMetric = screen.getByText("Cameras").closest("article");
   expect(camerasMetric).not.toBeNull();
   expect(within(camerasMetric!).getByText("2")).toBeInTheDocument();
 
-  const recordingLoadMetric = screen.getByText("Recording Load").closest("article");
+  const recordingLoadMetric = screen
+    .getByText("Recording Load")
+    .closest("article");
   expect(recordingLoadMetric).not.toBeNull();
   expect(within(recordingLoadMetric!).getByText("50%")).toBeInTheDocument();
-  expect(within(recordingLoadMetric!).getByText("1 / 2 recording")).toBeInTheDocument();
+  expect(
+    within(recordingLoadMetric!).getByText("1 / 2 recording"),
+  ).toBeInTheDocument();
 
   const storageUsedMetric = screen.getByText("Storage Used").closest("article");
   expect(storageUsedMetric).not.toBeNull();
   expect(within(storageUsedMetric!).getByText("3.3 KB")).toBeInTheDocument();
-  expect(within(storageUsedMetric!).getByText("2.0 KB recorded samples")).toBeInTheDocument();
+  expect(
+    within(storageUsedMetric!).getByText("2.0 KB recorded samples"),
+  ).toBeInTheDocument();
 
-  const activityStatusMetric = screen.getByText("Activity Status").closest("article");
-  expect(activityStatusMetric).not.toBeNull();
-  expect(within(activityStatusMetric!).getByText("No active signals")).toBeInTheDocument();
-  expect(within(activityStatusMetric!).getByText("Signal telemetry unavailable"))
-    .toBeInTheDocument();
-  expect(within(activityStatusMetric!).queryByText("1 idle")).not.toBeInTheDocument();
-  expect(within(activityStatusMetric!).queryByText("1 camera without active recording"))
-    .not.toBeInTheDocument();
+  const memoryMetric = screen.getByText("Process Memory").closest("article");
+  expect(memoryMetric).not.toBeNull();
+  expect(within(memoryMetric!).getByText("Pending")).toBeInTheDocument();
+  expect(
+    await within(memoryMetric!).findByText("Process telemetry unavailable"),
+  ).toBeInTheDocument();
+  expect(within(memoryMetric!).getByText("Unavailable")).toBeInTheDocument();
+  expect(
+    within(memoryMetric!).queryByText("Process telemetry pending"),
+  ).not.toBeInTheDocument();
+
+  const ioMetric = screen.getByText("Recorder I/O").closest("article");
+  expect(ioMetric).not.toBeNull();
+  expect(within(ioMetric!).getByText("Unavailable")).toBeInTheDocument();
+  expect(
+    within(ioMetric!).getByText("Network telemetry unavailable"),
+  ).toBeInTheDocument();
+  expect(within(ioMetric!).queryByText("1 idle")).not.toBeInTheDocument();
+  expect(
+    within(ioMetric!).queryByText("1 camera without active recording"),
+  ).not.toBeInTheDocument();
+});
+
+test("shows process telemetry when available", async () => {
+  server.use(
+    http.get("/api/system/process-telemetry", () =>
+      HttpResponse.json({
+        sampledAtUnixMs: 1_000_000_000_000,
+        pid: 42,
+        memory: {
+          status: "available",
+          residentBytes: 2_147_483_648,
+          virtualBytes: 5_368_709_120,
+        },
+        io: {
+          status: "available",
+          readBytesPerSec: 120_000,
+          writeBytesPerSec: 5_400_000,
+          totalReadBytes: 987_654_321,
+          totalWriteBytes: 1_234_567_890,
+        },
+        network: { status: "unavailable", reason: "not supported" },
+      }),
+    ),
+  );
+
+  renderWithCtx(
+    <DashboardActivity toplevel={makeToplevelFixture()} Frame={Frame} />,
+  );
+
+  const memoryMetric = screen.getByText("Process Memory");
+  expect(
+    await within(memoryMetric.closest("article")!).findByText("2.1 GB"),
+  ).toBeInTheDocument();
+
+  const ioMetric = screen.getByText("Recorder I/O");
+  expect(
+    within(ioMetric.closest("article")!).getByText(/5\.4 MB\/s write/),
+  ).toBeInTheDocument();
+  expect(screen.getByText("Network telemetry unavailable")).toBeInTheDocument();
+});
+
+test("keeps dashboard visible when process telemetry request fails", async () => {
+  server.use(
+    http.get("/api/system/process-telemetry", () =>
+      HttpResponse.text("telemetry failed", { status: 500 }),
+    ),
+  );
+
+  renderWithCtx(
+    <DashboardActivity toplevel={makeToplevelFixture()} Frame={Frame} />,
+  );
+
+  expect(
+    screen.getByRole("heading", { name: "System Overview" }),
+  ).toBeInTheDocument();
+  expect(
+    await screen.findByText("Process telemetry unavailable"),
+  ).toBeInTheDocument();
 });
 
 test("shows priority feed cards", () => {
-  renderWithCtx(<DashboardActivity toplevel={makeToplevelFixture()} Frame={Frame} />);
+  renderWithCtx(
+    <DashboardActivity toplevel={makeToplevelFixture()} Frame={Frame} />,
+  );
 
-  expect(screen.getByRole("heading", { name: "Priority Feeds" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: "Priority Feeds" }),
+  ).toBeInTheDocument();
 
   const frontDoorCard = screen.getByTestId("feed-card-front-door");
   expect(within(frontDoorCard).getByText("Front Door")).toBeInTheDocument();
-  expect(within(frontDoorCard).getByText("No recent recording")).toBeInTheDocument();
-  expect(within(frontDoorCard).getByText("1 recording stream")).toBeInTheDocument();
+  expect(
+    within(frontDoorCard).getByText("No recent recording"),
+  ).toBeInTheDocument();
+  expect(
+    within(frontDoorCard).getByText("1 recording stream"),
+  ).toBeInTheDocument();
+  expect(
+    within(frontDoorCard).getByRole("link", {
+      name: "Open archive for Front Door",
+    }),
+  ).toHaveAttribute("href", "/archive");
+  expect(
+    within(frontDoorCard).getByRole("link", {
+      name: "Manage Front Door from priority feed",
+    }),
+  ).toHaveAttribute("href", "/cameras");
 
   const garageCard = screen.getByTestId("feed-card-garage");
-  expect(within(garageCard).getByRole("heading", { name: "Garage" })).toBeInTheDocument();
-  expect(within(garageCard).getByText("No recent recording")).toBeInTheDocument();
-  expect(within(garageCard).getByText("0 recording streams")).toBeInTheDocument();
+  expect(
+    within(garageCard).getByRole("heading", { name: "Garage" }),
+  ).toBeInTheDocument();
+  expect(
+    within(garageCard).getByText("No recent recording"),
+  ).toBeInTheDocument();
+  expect(
+    within(garageCard).getByText("0 recording streams"),
+  ).toBeInTheDocument();
+  expect(
+    within(garageCard).getByRole("link", {
+      name: "Open archive for Garage",
+    }),
+  ).toHaveAttribute("href", "/archive");
+  expect(
+    within(garageCard).getByRole("link", {
+      name: "Manage Garage from priority feed",
+    }),
+  ).toHaveAttribute("href", "/cameras");
 });
 
 test("shows quick management stream status", () => {
-  renderWithCtx(<DashboardActivity toplevel={makeToplevelFixture()} Frame={Frame} />);
+  renderWithCtx(
+    <DashboardActivity toplevel={makeToplevelFixture()} Frame={Frame} />,
+  );
 
-  expect(screen.getByRole("heading", { name: "Quick Management" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: "Quick Management" }),
+  ).toBeInTheDocument();
 
   const quickManagement = screen.getByTestId("quick-management");
   expect(within(quickManagement).getByText("Front Door")).toBeInTheDocument();
-  expect(within(quickManagement).getByText("1 active / 2 streams")).toBeInTheDocument();
+  expect(
+    within(quickManagement).getByText("1 active / 2 streams"),
+  ).toBeInTheDocument();
   expect(within(quickManagement).getByText("Garage")).toBeInTheDocument();
-  expect(within(quickManagement).getByText("0 active / 0 streams")).toBeInTheDocument();
+  expect(
+    within(quickManagement).getByText("0 active / 0 streams"),
+  ).toBeInTheDocument();
 
-  const managementLinks = within(quickManagement).getAllByRole("link", {
-    name: "Manage Camera",
-  });
-  expect(managementLinks).toHaveLength(2);
-  expect(managementLinks[0]).toHaveAttribute("href", "/cameras");
-  expect(managementLinks[1]).toHaveAttribute("href", "/cameras");
+  expect(
+    within(quickManagement).getByRole("link", {
+      name: "Manage Front Door from quick management",
+    }),
+  ).toHaveAttribute("href", "/cameras");
+  expect(
+    within(quickManagement).getByRole("link", {
+      name: "Manage Garage from quick management",
+    }),
+  ).toHaveAttribute("href", "/cameras");
 });
 
 test("shows activity report placeholder", () => {
-  renderWithCtx(<DashboardActivity toplevel={makeToplevelFixture()} Frame={Frame} />);
+  renderWithCtx(
+    <DashboardActivity toplevel={makeToplevelFixture()} Frame={Frame} />,
+  );
 
-  expect(screen.getByRole("heading", { name: "24h Activity Report" })).toBeInTheDocument();
-  expect(screen.getByText("Recording activity history not available yet")).toBeInTheDocument();
-  expect(screen.getByText("No 24h recording history available")).toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: "24h Activity Report" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText("Recording activity history not available yet"),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText("No 24h recording history available"),
+  ).toBeInTheDocument();
   expect(screen.queryByTestId("activity-history-bars")).not.toBeInTheDocument();
 });
 
@@ -172,9 +327,15 @@ test("shows active recording status when recent frames are available", () => {
   renderWithCtx(<DashboardActivity toplevel={toplevel} Frame={Frame} />);
 
   const frontDoorCard = screen.getByTestId("feed-card-front-door");
-  expect(within(frontDoorCard).getByText("Recording active")).toBeInTheDocument();
-  expect(within(frontDoorCard).getByText("19 recent frames")).toBeInTheDocument();
-  expect(within(frontDoorCard).queryByText("No recent recording")).not.toBeInTheDocument();
+  expect(
+    within(frontDoorCard).getByText("Recording active"),
+  ).toBeInTheDocument();
+  expect(
+    within(frontDoorCard).getByText("19 recent frames"),
+  ).toBeInTheDocument();
+  expect(
+    within(frontDoorCard).queryByText("No recent recording"),
+  ).not.toBeInTheDocument();
 });
 
 test("shows 24h activity report from real day data", () => {
@@ -190,11 +351,15 @@ test("shows 24h activity report from real day data", () => {
 
   renderWithCtx(<DashboardActivity toplevel={toplevel} Frame={Frame} />);
 
-  expect(screen.getByRole("heading", { name: "24h Activity Report" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: "24h Activity Report" }),
+  ).toBeInTheDocument();
   expect(screen.getByText("1 day with recording activity")).toBeInTheDocument();
   expect(screen.getByText("2026-05-28")).toBeInTheDocument();
   expect(screen.getByTestId("activity-history-bars")).toBeInTheDocument();
-  expect(screen.queryByText("Recording activity history not available yet")).not.toBeInTheDocument();
+  expect(
+    screen.queryByText("Recording activity history not available yet"),
+  ).not.toBeInTheDocument();
 });
 
 test("formats byte counts consistently through terabytes", () => {

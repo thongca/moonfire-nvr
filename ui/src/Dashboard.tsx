@@ -9,8 +9,15 @@ import CardContent from "@mui/material/CardContent";
 import Chip from "@mui/material/Chip";
 import Container from "@mui/material/Container";
 import Grid from "@mui/material/Grid";
+import LinearProgress from "@mui/material/LinearProgress";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import VideocamOutlinedIcon from "@mui/icons-material/VideocamOutlined";
+import MemoryOutlinedIcon from "@mui/icons-material/MemoryOutlined";
+import StorageOutlinedIcon from "@mui/icons-material/StorageOutlined";
+import SensorsOutlinedIcon from "@mui/icons-material/SensorsOutlined";
+import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import * as api from "./api";
 import { FrameProps } from "./App";
@@ -46,9 +53,28 @@ interface ActivityDay {
   duration90k: number;
 }
 
+const monoFont = '"JetBrains Mono", "Roboto Mono", Consolas, monospace';
+
+const panelSx = {
+  border: `1px solid ${shellTokens.border.subtle}`,
+  borderRadius: "4px",
+  background: shellTokens.surface.panel,
+  boxShadow: "none",
+};
+
+const labelSx = {
+  color: "text.secondary",
+  fontFamily: monoFont,
+  fontSize: 10,
+  fontWeight: 700,
+  letterSpacing: "0.08em",
+  lineHeight: "14px",
+  textTransform: "uppercase",
+};
+
 export const getStreams = (camera: Camera): Stream[] =>
-  Object.values(camera.streams).filter((stream): stream is Stream =>
-    stream !== undefined,
+  Object.values(camera.streams).filter(
+    (stream): stream is Stream => stream !== undefined,
   );
 
 export const getCameraHealth = (camera: Camera): CameraHealth => {
@@ -85,6 +111,39 @@ const getActivityDays = (streams: Stream[]): ActivityDay[] => {
     .sort((a, b) => a.date.localeCompare(b.date));
 };
 
+export const formatRate = (bytesPerSec?: number | null): string => {
+  if (bytesPerSec === undefined || bytesPerSec === null) {
+    return "unavailable";
+  }
+  return `${formatBytes(bytesPerSec)}/s`;
+};
+
+export const getProcessMemoryValue = (
+  telemetry: api.ProcessTelemetryResponse | null,
+  unavailable: boolean,
+): string => {
+  if (unavailable || telemetry?.memory.status === "unavailable") {
+    return "Unavailable";
+  }
+  if (telemetry === null) {
+    return "Pending";
+  }
+  return formatBytes(telemetry.memory.residentBytes);
+};
+
+export const getProcessIoValue = (
+  telemetry: api.ProcessTelemetryResponse | null,
+  unavailable: boolean,
+): string => {
+  if (unavailable || telemetry?.io.status === "unavailable") {
+    return "Unavailable";
+  }
+  if (telemetry === null) {
+    return "Pending";
+  }
+  return `${formatRate(telemetry.io.writeBytesPerSec)} write`;
+};
+
 export const getDashboardStats = (
   toplevel: api.ToplevelResponse,
 ): DashboardStats => {
@@ -111,32 +170,58 @@ function MetricCard({
   title,
   value,
   detail,
+  footer,
+  icon,
   accent = false,
 }: {
   title: string;
   value: string;
   detail: string;
+  footer?: React.ReactNode;
+  icon: React.ReactNode;
   accent?: boolean;
 }) {
   return (
     <Card
       component="article"
       sx={{
-        height: "100%",
+        ...panelSx,
+        height: 132,
         border: `1px solid ${
           accent ? shellTokens.primary.fireOrange : shellTokens.border.subtle
         }`,
-        background: shellTokens.surface.raised,
+        background: `linear-gradient(180deg, ${shellTokens.surface.raised}, ${shellTokens.surface.panel})`,
       }}
     >
-      <CardContent>
-        <Typography variant="overline" color="text.secondary">
-          {title}
-        </Typography>
-        <Typography variant="h3" component="p" sx={{ fontWeight: 700 }}>
-          {value}
-        </Typography>
-        <Typography color="text.secondary">{detail}</Typography>
+      <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="flex-start"
+        >
+          <Typography sx={labelSx}>{title}</Typography>
+          <Box sx={{ color: "text.secondary", opacity: 0.75 }}>{icon}</Box>
+        </Stack>
+        <Stack direction="row" spacing={1} alignItems="baseline" sx={{ mt: 1 }}>
+          <Typography
+            component="p"
+            noWrap
+            sx={{
+              fontSize: value.length > 12 ? 25 : 34,
+              fontWeight: 800,
+              letterSpacing: "-0.04em",
+              minWidth: 0,
+            }}
+          >
+            {value}
+          </Typography>
+          <Typography
+            sx={{ color: "text.secondary", fontFamily: monoFont, fontSize: 11 }}
+          >
+            {detail}
+          </Typography>
+        </Stack>
+        {footer}
       </CardContent>
     </Card>
   );
@@ -151,44 +236,50 @@ function CameraFeedCard({ health }: { health: CameraHealth }) {
     <Card
       data-testid={`feed-card-${health.camera.uuid}`}
       sx={{
-        minHeight: 220,
+        ...panelSx,
+        minHeight: 186,
         border: `1px solid ${shellTokens.border.subtle}`,
-        background: `linear-gradient(180deg, ${shellTokens.surface.overlay}, ${shellTokens.surface.panel})`,
+        background: shellTokens.surface.panel,
       }}
     >
       <CardContent
-        sx={{ height: "100%", display: "flex", flexDirection: "column" }}
+        sx={{
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          p: 1.25,
+          "&:last-child": { pb: 1.25 },
+        }}
       >
-        <Stack
-          direction="row"
-          justifyContent="space-between"
-          alignItems="center"
-          sx={{ mb: 2 }}
+        <Box
+          sx={{
+            minHeight: 112,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            border: `1px solid ${shellTokens.border.subtle}`,
+            borderRadius: "3px",
+            mb: 1,
+            position: "relative",
+            overflow: "hidden",
+            background:
+              "linear-gradient(135deg, rgba(255,255,255,0.05), transparent 40%), repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0 1px, transparent 1px 26px), #101010",
+          }}
         >
           <Chip
             size="small"
             label={health.status === "recording" ? "REC" : "IDLE"}
             color={health.status === "recording" ? "primary" : "default"}
+            sx={{
+              position: "absolute",
+              left: 8,
+              top: 8,
+              height: 20,
+              borderRadius: "2px",
+              fontFamily: monoFont,
+              fontSize: 10,
+            }}
           />
-          <Typography variant="caption" color="text.secondary">
-            {formatCount(
-              health.activeStreams,
-              "recording stream",
-              "recording streams",
-            )}
-          </Typography>
-        </Stack>
-        <Box
-          sx={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            border: `1px dashed ${shellTokens.border.subtle}`,
-            borderRadius: 1,
-            mb: 2,
-          }}
-        >
           {hasRecentRecording ? (
             <Stack spacing={0.5} sx={{ textAlign: "center" }}>
               <Typography sx={{ fontWeight: 700 }}>Recording active</Typography>
@@ -201,22 +292,57 @@ function CameraFeedCard({ health }: { health: CameraHealth }) {
                     (total, stream) => total + (stream.recentFrameBytes ?? 0),
                     0,
                   ),
-                )} buffered
+                )}{" "}
+                buffered
               </Typography>
             </Stack>
           ) : (
-            <Typography color="text.secondary">No recent recording</Typography>
+            <Typography
+              sx={{
+                color: "text.secondary",
+                fontFamily: monoFont,
+                fontSize: 12,
+              }}
+            >
+              No recent recording
+            </Typography>
           )}
         </Box>
-        <Typography variant="h6" component="h3">
+        <Typography component="h3" sx={{ fontSize: 14, fontWeight: 800 }}>
           {health.camera.shortName}
         </Typography>
-        <Typography color="text.secondary">{health.camera.description}</Typography>
-        <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
-          <Button component={Link} to="/archive" size="small">
+        <Typography color="text.secondary" sx={{ fontSize: 12 }}>
+          {health.camera.description || "No description"}
+        </Typography>
+        <Typography
+          sx={{
+            color: "text.secondary",
+            fontFamily: monoFont,
+            fontSize: 11,
+            mt: 0.5,
+          }}
+        >
+          {formatCount(
+            health.activeStreams,
+            "recording stream",
+            "recording streams",
+          )}
+        </Typography>
+        <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+          <Button
+            aria-label={`Open archive for ${health.camera.shortName}`}
+            component={Link}
+            to="/archive"
+            size="small"
+          >
             Open Archive
           </Button>
-          <Button component={Link} to="/cameras" size="small">
+          <Button
+            aria-label={`Manage ${health.camera.shortName} from priority feed`}
+            component={Link}
+            to="/cameras"
+            size="small"
+          >
             Manage Camera
           </Button>
         </Stack>
@@ -228,13 +354,27 @@ function CameraFeedCard({ health }: { health: CameraHealth }) {
 function PriorityFeeds({ cameraHealth }: { cameraHealth: CameraHealth[] }) {
   return (
     <Box>
-      <Typography variant="h5" component="h2" sx={{ mb: 2, fontWeight: 700 }}>
-        Priority Feeds
-      </Typography>
+      <Stack
+        direction="row"
+        justifyContent="space-between"
+        alignItems="center"
+        sx={{ mb: 1 }}
+      >
+        <Typography
+          variant="h5"
+          component="h2"
+          sx={{ fontSize: 18, fontWeight: 800 }}
+        >
+          Priority Feeds
+        </Typography>
+        <Typography sx={labelSx}>Configure</Typography>
+      </Stack>
       {cameraHealth.length === 0 ? (
-        <Card sx={{ border: `1px solid ${shellTokens.border.subtle}` }}>
-          <CardContent>
-            <Typography variant="h6">No cameras configured</Typography>
+        <Card sx={{ ...panelSx, minHeight: 170 }}>
+          <CardContent sx={{ p: 2 }}>
+            <Typography variant="h6" sx={{ fontSize: 16, fontWeight: 800 }}>
+              No cameras configured
+            </Typography>
             <Typography color="text.secondary" sx={{ mb: 2 }}>
               Add cameras to populate priority feeds.
             </Typography>
@@ -258,36 +398,55 @@ function PriorityFeeds({ cameraHealth }: { cameraHealth: CameraHealth[] }) {
 
 function QuickManagement({ cameraHealth }: { cameraHealth: CameraHealth[] }) {
   return (
-    <Card
-      data-testid="quick-management"
-      sx={{ border: `1px solid ${shellTokens.border.subtle}`, height: "100%" }}
-    >
-      <CardContent>
-        <Typography variant="h5" component="h2" sx={{ mb: 2, fontWeight: 700 }}>
-          Quick Management
-        </Typography>
+    <Card data-testid="quick-management" sx={{ ...panelSx, height: "100%" }}>
+      <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
+        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }}>
+          <SettingsOutlinedIcon color="primary" fontSize="small" />
+          <Typography
+            variant="h5"
+            component="h2"
+            sx={{ fontSize: 16, fontWeight: 800 }}
+          >
+            Quick Management
+          </Typography>
+        </Stack>
         <Stack spacing={1.5}>
           {cameraHealth.length === 0 ? (
-            <Typography color="text.secondary">No cameras configured</Typography>
+            <Typography color="text.secondary">
+              No cameras configured
+            </Typography>
           ) : (
             cameraHealth.map((health) => (
               <Box
                 key={health.camera.uuid}
                 sx={{
                   border: `1px solid ${shellTokens.border.subtle}`,
-                  borderRadius: 1,
-                  p: 1.5,
+                  borderRadius: "3px",
+                  p: 1,
+                  background: shellTokens.surface.raised,
                 }}
               >
-                <Stack direction="row" justifyContent="space-between" spacing={1}>
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  spacing={1}
+                >
                   <Box>
-                    <Typography sx={{ fontWeight: 700 }}>
+                    <Typography sx={{ fontWeight: 800, fontSize: 13 }}>
                       {health.camera.shortName}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {health.activeStreams} active / {health.streams.length} streams
+                    <Typography
+                      sx={{
+                        color: "text.secondary",
+                        fontFamily: monoFont,
+                        fontSize: 11,
+                      }}
+                    >
+                      {health.activeStreams} active / {health.streams.length}{" "}
+                      streams
                     </Typography>
                     <Button
+                      aria-label={`Manage ${health.camera.shortName} from quick management`}
                       component={Link}
                       to="/cameras"
                       size="small"
@@ -299,7 +458,9 @@ function QuickManagement({ cameraHealth }: { cameraHealth: CameraHealth[] }) {
                   <Chip
                     size="small"
                     label={health.status === "recording" ? "Recording" : "Idle"}
-                    color={health.status === "recording" ? "primary" : "default"}
+                    color={
+                      health.status === "recording" ? "primary" : "default"
+                    }
                   />
                 </Stack>
               </Box>
@@ -324,9 +485,13 @@ function ActivityReport({ streams }: { streams: Stream[] }) {
   const activityDays = getActivityDays(streams);
 
   return (
-    <Card sx={{ border: `1px solid ${shellTokens.border.subtle}` }}>
-      <CardContent>
-        <Typography variant="h5" component="h2" sx={{ mb: 1, fontWeight: 700 }}>
+    <Card sx={panelSx}>
+      <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
+        <Typography
+          variant="h5"
+          component="h2"
+          sx={{ mb: 1, fontSize: 18, fontWeight: 800 }}
+        >
           24h Activity Report
         </Typography>
         {activityDays.length === 0 ? (
@@ -338,7 +503,7 @@ function ActivityReport({ streams }: { streams: Stream[] }) {
               sx={{
                 alignItems: "center",
                 border: `1px dashed ${shellTokens.border.subtle}`,
-                borderRadius: 1,
+                borderRadius: "3px",
                 display: "flex",
                 height: 96,
                 justifyContent: "center",
@@ -362,7 +527,11 @@ function ActivityReport({ streams }: { streams: Stream[] }) {
             </Typography>
             {activityDays.map((day) => (
               <Box key={day.date}>
-                <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  sx={{ mb: 0.5 }}
+                >
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>
                     {day.date}
                   </Typography>
@@ -397,6 +566,10 @@ function ActivityReport({ streams }: { streams: Stream[] }) {
 }
 
 export default function DashboardActivity({ toplevel, Frame }: Props) {
+  const [processTelemetry, setProcessTelemetry] =
+    useState<api.ProcessTelemetryResponse | null>(null);
+  const [processTelemetryUnavailable, setProcessTelemetryUnavailable] =
+    useState(false);
   const stats = getDashboardStats(toplevel);
   const cameraHealth = stats.cameras.map(getCameraHealth);
   let liveSync = "unavailable";
@@ -414,6 +587,70 @@ export default function DashboardActivity({ toplevel, Frame }: Props) {
     liveSync = `${new Date().toISOString().slice(11, 19)} UTC`;
   }
 
+  useEffect(() => {
+    let currentController: AbortController | null = null;
+    let mounted = true;
+    let requestId = 0;
+    const fetchTelemetry = async () => {
+      currentController?.abort();
+      const controller = new AbortController();
+      const thisRequestId = ++requestId;
+      currentController = controller;
+      try {
+        const result = await api.processTelemetry({
+          signal: controller.signal,
+        });
+        if (!mounted || thisRequestId !== requestId) {
+          return;
+        }
+        if (result.status === "success") {
+          setProcessTelemetry(result.response);
+          setProcessTelemetryUnavailable(false);
+        } else if (result.status !== "aborted") {
+          setProcessTelemetry(null);
+          setProcessTelemetryUnavailable(true);
+        }
+      } catch (e) {
+        if (
+          mounted &&
+          thisRequestId === requestId &&
+          !controller.signal.aborted
+        ) {
+          setProcessTelemetry(null);
+          setProcessTelemetryUnavailable(true);
+          console.error("process telemetry request failed", e);
+        }
+      } finally {
+        if (currentController === controller) {
+          currentController = null;
+        }
+      }
+    };
+
+    void fetchTelemetry();
+    const interval = window.setInterval(() => void fetchTelemetry(), 10_000);
+
+    return () => {
+      mounted = false;
+      currentController?.abort();
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  const processMemoryValue = getProcessMemoryValue(
+    processTelemetry,
+    processTelemetryUnavailable,
+  );
+  const processIoValue = getProcessIoValue(
+    processTelemetry,
+    processTelemetryUnavailable,
+  );
+  const networkStatus =
+    processTelemetryUnavailable ||
+    processTelemetry?.network.status === "unavailable"
+      ? "Network telemetry unavailable"
+      : "Network telemetry pending";
+
   return (
     <Frame>
       <Container maxWidth={false} sx={{ py: 3 }}>
@@ -421,13 +658,17 @@ export default function DashboardActivity({ toplevel, Frame }: Props) {
           direction={{ xs: "column", md: "row" }}
           justifyContent="space-between"
           spacing={2}
-          sx={{ mb: 3 }}
+          sx={{ mb: 2 }}
         >
           <Box>
-            <Typography variant="h3" component="h1" sx={{ fontWeight: 800 }}>
+            <Typography
+              variant="h3"
+              component="h1"
+              sx={{ fontSize: 32, fontWeight: 900, letterSpacing: "-0.04em" }}
+            >
               System Overview
             </Typography>
-            <Typography color="text.secondary">
+            <Typography color="text.secondary" sx={{ fontSize: 13 }}>
               Infrastructure monitoring and recording telemetry
             </Typography>
           </Box>
@@ -438,12 +679,24 @@ export default function DashboardActivity({ toplevel, Frame }: Props) {
           />
         </Stack>
 
-        <Grid container spacing={1.5} sx={{ mb: 3 }}>
+        <Grid container spacing={1} sx={{ mb: 2 }}>
           <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
             <MetricCard
               title="Cameras"
               value={`${stats.cameras.length}`}
-              detail={`${stats.activeStreams} / ${stats.streams.length} recording`}
+              detail="active"
+              icon={<VideocamOutlinedIcon fontSize="small" />}
+              footer={
+                <Typography
+                  sx={{
+                    ...labelSx,
+                    mt: 0.5,
+                    color: shellTokens.primary.fireOrange,
+                  }}
+                >
+                  {stats.activeStreams} of {stats.streams.length} recording
+                </Typography>
+              }
               accent
             />
           </Grid>
@@ -451,21 +704,69 @@ export default function DashboardActivity({ toplevel, Frame }: Props) {
             <MetricCard
               title="Recording Load"
               value={`${stats.recordingLoadPercent}%`}
-              detail={`${stats.activeStreams} / ${stats.streams.length} recording`}
+              detail="rec load"
+              icon={<MemoryOutlinedIcon fontSize="small" />}
+              footer={
+                <>
+                  <LinearProgress
+                    variant="determinate"
+                    value={stats.recordingLoadPercent}
+                    sx={{ mt: 1.25, height: 4, borderRadius: 0 }}
+                  />
+                  <Typography sx={{ ...labelSx, mt: 0.5 }}>
+                    {stats.activeStreams} / {stats.streams.length} recording
+                  </Typography>
+                </>
+              }
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
             <MetricCard
               title="Storage Used"
               value={formatBytes(stats.storageBytes)}
-              detail={`${formatBytes(stats.sampleBytes)} recorded samples`}
+              detail="on disk"
+              icon={<StorageOutlinedIcon fontSize="small" />}
+              footer={
+                <Typography sx={{ ...labelSx, mt: 0.5 }}>
+                  {formatBytes(stats.sampleBytes)} recorded samples
+                </Typography>
+              }
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
             <MetricCard
-              title="Activity Status"
-              value="No active signals"
-              detail="Signal telemetry unavailable"
+              title="Process Memory"
+              value={processMemoryValue}
+              detail={
+                processTelemetry?.memory.status === "available"
+                  ? "resident"
+                  : ""
+              }
+              icon={<MemoryOutlinedIcon fontSize="small" />}
+              footer={
+                <Typography sx={{ ...labelSx, mt: 0.5 }}>
+                  {processTelemetryUnavailable
+                    ? "Process telemetry unavailable"
+                    : processTelemetry?.memory.status === "available"
+                      ? `${formatBytes(processTelemetry.memory.virtualBytes)} virtual`
+                      : processTelemetry?.memory.status === "unavailable"
+                        ? "Process telemetry unavailable"
+                        : "Process telemetry pending"}
+                </Typography>
+              }
+            />
+          </Grid>
+          <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
+            <MetricCard
+              title="Recorder I/O"
+              value={processIoValue}
+              detail=""
+              icon={<SensorsOutlinedIcon fontSize="small" />}
+              footer={
+                <Typography sx={{ ...labelSx, mt: 0.5 }}>
+                  {networkStatus}
+                </Typography>
+              }
             />
           </Grid>
         </Grid>

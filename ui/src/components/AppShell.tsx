@@ -14,7 +14,6 @@ import HealthAndSafetyOutlined from "@mui/icons-material/HealthAndSafetyOutlined
 import LogoutOutlined from "@mui/icons-material/LogoutOutlined";
 import Search from "@mui/icons-material/Search";
 import VideoLibraryOutlined from "@mui/icons-material/VideoLibraryOutlined";
-import VideocamOutlined from "@mui/icons-material/VideocamOutlined";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
@@ -45,7 +44,6 @@ interface AppShellProps {
 
 const navItems = [
   { label: "Dashboard", to: "/", icon: <DashboardOutlined /> },
-  { label: "Live View", to: "/live", icon: <VideocamOutlined /> },
   { label: "Archive", to: "/archive", icon: <VideoLibraryOutlined /> },
   { label: "Cameras", to: "/cameras", icon: <CameraAltOutlined /> },
   { label: "System Health", to: "/system", icon: <HealthAndSafetyOutlined /> },

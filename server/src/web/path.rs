@@ -15,6 +15,7 @@ pub(super) enum Path {
     InitSegment(i32, bool),                           // "/api/init/<id>.mp4{.txt}"
     Camera(Uuid),                                     // "/api/cameras/<uuid>/"
     Signals,                                          // "/api/signals"
+    ProcessTelemetry,                                 // "/api/system/process-telemetry"
     StreamRecordings(Uuid, db::StreamType),           // "/api/cameras/<uuid>/<type>/recordings"
     StreamViewMp4(Uuid, db::StreamType, bool),        // "/api/cameras/<uuid>/<type>/view.mp4{.txt}"
     StreamViewMp4Segment(Uuid, db::StreamType, bool), // "/api/cameras/<uuid>/<type>/view.m4s{.txt}"
@@ -44,6 +45,7 @@ impl Path {
             "logout" => return Path::Logout,
             "request" => return Path::Request,
             "signals" => return Path::Signals,
+            "system/process-telemetry" => return Path::ProcessTelemetry,
             _ => {}
         };
         if let Some(path) = path.strip_prefix("init/") {
@@ -223,5 +225,15 @@ mod tests {
         );
         assert_eq!(Path::decode("/api/cameras/5/streams/junk"), Path::NotFound);
         assert_eq!(Path::decode("/api/cameras/abc"), Path::NotFound);
+    }
+
+    #[test]
+    fn decodes_process_telemetry_path() {
+        use super::Path;
+
+        assert_eq!(
+            Path::decode("/api/system/process-telemetry"),
+            Path::ProcessTelemetry
+        );
     }
 }

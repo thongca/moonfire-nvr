@@ -11,14 +11,12 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import ButtonBase from "@mui/material/ButtonBase";
 import Typography from "@mui/material/Typography";
-import VideocamOutlinedIcon from "@mui/icons-material/VideocamOutlined";
 import StorageOutlinedIcon from "@mui/icons-material/StorageOutlined";
 import PeopleOutlinedIcon from "@mui/icons-material/PeopleOutlined";
 import LanOutlinedIcon from "@mui/icons-material/LanOutlined";
 import SystemUpdateOutlinedIcon from "@mui/icons-material/SystemUpdateOutlined";
 import { shellTokens } from "../theme";
 import { FrameProps } from "../App";
-import CameraConfig from "./CameraConfig";
 import StorageManagement from "./StorageManagement";
 import UserPermissions from "./UserPermissions";
 import Network from "./Network";
@@ -26,14 +24,9 @@ import SystemUpdates from "./SystemUpdates";
 
 const SHELL_NAV_WIDTH = 280;
 
-type Section = "camera" | "storage" | "users" | "network" | "updates";
+type Section = "storage" | "users" | "network" | "updates";
 
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode }[] = [
-  {
-    id: "camera",
-    label: "Camera Config",
-    icon: <VideocamOutlinedIcon fontSize="small" aria-hidden="true" />,
-  },
   {
     id: "storage",
     label: "Storage Management",
@@ -68,10 +61,14 @@ interface SectionContentProps {
   serverVersion?: string;
 }
 
-function SectionContent({ section, csrf, serverVersion }: SectionContentProps): React.ReactElement {
+function SectionContent({
+  section,
+  csrf,
+  serverVersion,
+}: SectionContentProps): React.ReactElement {
+  void csrf;
+
   switch (section) {
-    case "camera":
-      return <CameraConfig csrf={csrf} />;
     case "storage":
       return <StorageManagement />;
     case "users":
@@ -87,8 +84,12 @@ function SectionContent({ section, csrf, serverVersion }: SectionContentProps): 
   }
 }
 
-export default function SettingsActivity({ Frame, csrf, serverVersion }: Props) {
-  const [activeSection, setActiveSection] = useState<Section>("camera");
+export default function SettingsActivity({
+  Frame,
+  csrf,
+  serverVersion,
+}: Props) {
+  const [activeSection, setActiveSection] = useState<Section>("storage");
 
   return (
     <Frame>
@@ -183,8 +184,15 @@ export default function SettingsActivity({ Frame, csrf, serverVersion }: Props) 
         </Box>
 
         {/* Content area */}
-        <Box data-testid="settings-content" sx={{ flex: 1, p: 3, overflow: "auto" }}>
-          <SectionContent section={activeSection} csrf={csrf} serverVersion={serverVersion} />
+        <Box
+          data-testid="settings-content"
+          sx={{ flex: 1, p: 3, overflow: "auto" }}
+        >
+          <SectionContent
+            section={activeSection}
+            csrf={csrf}
+            serverVersion={serverVersion}
+          />
         </Box>
       </Box>
 

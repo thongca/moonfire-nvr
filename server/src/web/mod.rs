@@ -19,21 +19,22 @@ use self::path::Path;
 use crate::body::Body;
 use crate::json;
 use crate::mp4;
+use crate::process_telemetry::ProcessTelemetrySampler;
 use crate::web::static_file::Ui;
-use base::err;
 use base::Error;
 use base::ResultExt;
-use base::{bail, clock::Clocks, ErrorKind};
+use base::err;
+use base::{ErrorKind, bail, clock::Clocks};
 use core::borrow::Borrow;
 use core::str::FromStr;
 use db::{auth, recording};
 use http::header::{self, HeaderValue};
-use http::{status::StatusCode, Request, Response};
+use http::{Request, Response, status::StatusCode};
 use hyper::body::Bytes;
 use std::net::IpAddr;
 use std::sync::Arc;
-use tracing::warn;
 use tracing::Instrument;
+use tracing::warn;
 use url::form_urlencoded;
 use uuid::Uuid;
 
@@ -161,6 +162,7 @@ pub struct Config<'a> {
 pub struct Service {
     db: Arc<db::Database>,
     sample_entries: db::sample_entries::Handle,
+    process_telemetry: ProcessTelemetrySampler,
     ui: Ui,
     time_zone_name: String,
     allow_unauthenticated_permissions: Option<db::Permissions>,
@@ -190,6 +192,7 @@ impl Service {
         Ok(Service {
             db: config.db,
             sample_entries,
+            process_telemetry: ProcessTelemetrySampler::default(),
             ui: ui_dir,
             allow_unauthenticated_permissions: config.allow_unauthenticated_permissions,
             trust_forward_hdrs: config.trust_forward_hdrs,
@@ -273,6 +276,10 @@ impl Service {
             Path::Signals => (
                 CacheControl::PrivateDynamic,
                 self.signals(req, caller).await?,
+            ),
+            Path::ProcessTelemetry => (
+                CacheControl::PrivateDynamic,
+                self.process_telemetry(&req, caller)?,
             ),
             Path::Static => (CacheControl::None, self.static_file(req).await?),
             Path::Users => (CacheControl::PrivateDynamic, self.users(req, caller).await?),
@@ -436,6 +443,17 @@ impl Service {
             req,
             &json::Camera::wrap(camera, &db, true, false).err_kind(ErrorKind::Internal)?,
         )
+    }
+
+    fn process_telemetry(
+        &self,
+        req: &Request<::hyper::body::Incoming>,
+        caller: Caller,
+    ) -> ResponseResult {
+        if !caller.permissions.admin_users {
+            bail!(Unauthenticated, msg("must have admin_users permission"));
+        }
+        serve_json(req, &self.process_telemetry.sample())
     }
 
     fn stream_recordings(
@@ -637,7 +655,7 @@ impl Service {
                             preferences: u.config.preferences.clone(),
                             session: Some(json::Session { csrf: s.csrf() }),
                         }),
-                    })
+                    });
                 }
                 Err(err) if err.kind() == base::ErrorKind::Unauthenticated => {
                     // Log the specific reason this session is unauthenticated.
@@ -812,6 +830,36 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), reqwest::StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn process_telemetry_requires_admin_users_permission() {
+        testutil::init();
+        let s = Server::new(Some(db::Permissions::default())).await;
+        let cli = reqwest::Client::new();
+        let resp = cli
+            .get(format!("{}/api/system/process-telemetry", &s.base_url))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), reqwest::StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn process_telemetry_allows_admin_users_permission() {
+        testutil::init();
+        let s = Server::new(Some(db::Permissions {
+            admin_users: true,
+            ..Default::default()
+        }))
+        .await;
+        let cli = reqwest::Client::new();
+        let resp = cli
+            .get(format!("{}/api/system/process-telemetry", &s.base_url))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), reqwest::StatusCode::OK);
     }
 
     #[tokio::test]

@@ -29,11 +29,24 @@ test("renders settings title and sub-section nav", () => {
   renderWithCtx(<SettingsActivity {...baseProps} />);
 
   expect(screen.getByText("System Settings")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Camera Config" })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Storage Management" })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "User Permissions" })).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Camera Config" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Storage Management" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "User Permissions" }),
+  ).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Network" })).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "System Updates" })).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "System Updates" }),
+  ).toBeInTheDocument();
+  expect(
+    within(screen.getByTestId("settings-content")).getByText(
+      "Storage Management",
+    ),
+  ).toBeInTheDocument();
 });
 
 test("clicking a nav item switches the active section", async () => {
@@ -41,5 +54,7 @@ test("clicking a nav item switches the active section", async () => {
 
   await userEvent.click(screen.getByRole("button", { name: "Network" }));
 
-  expect(within(screen.getByTestId("settings-content")).getByText("Network")).toBeInTheDocument();
+  expect(
+    within(screen.getByTestId("settings-content")).getByText("Network"),
+  ).toBeInTheDocument();
 });

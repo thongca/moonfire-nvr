@@ -14,6 +14,7 @@ mod body;
 mod cmds;
 mod json;
 mod mp4;
+mod process_telemetry;
 mod slices;
 mod stream;
 mod streamer;

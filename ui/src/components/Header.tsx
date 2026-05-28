@@ -13,7 +13,6 @@ import HealthAndSafetyIcon from "@mui/icons-material/HealthAndSafety";
 import SensorsIcon from "@mui/icons-material/Sensors";
 import ListIcon from "@mui/icons-material/List";
 import PeopleIcon from "@mui/icons-material/People";
-import Videocam from "@mui/icons-material/Videocam";
 import VideocamAddIcon from "@mui/icons-material/VideoCameraBack";
 import * as api from "../api";
 
@@ -94,17 +93,6 @@ export default function Header({
               <HealthAndSafetyIcon />
             </ListItemIcon>
             <ListItemText primary="System Health" />
-          </ListItemButton>
-          <ListItemButton
-            key="live"
-            onClick={toggleShowMenu}
-            component={Link}
-            to="/live"
-          >
-            <ListItemIcon>
-              <Videocam />
-            </ListItemIcon>
-            <ListItemText primary="Live view (experimental)" />
           </ListItemButton>
           {toplevel?.permissions.updateSignals && (
             <ListItemButton

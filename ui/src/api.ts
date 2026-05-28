@@ -176,6 +176,40 @@ export interface ToplevelUser {
   session: Session | undefined;
 }
 
+export interface ProcessTelemetryResponse {
+  sampledAtUnixMs: number;
+  pid: number;
+  memory: ProcessMemoryTelemetry;
+  io: ProcessIoTelemetry;
+  network: ProcessNetworkTelemetry;
+}
+
+export type ProcessMemoryTelemetry =
+  | { status: "available"; residentBytes: number; virtualBytes: number }
+  | { status: "unavailable"; reason: string };
+
+export type ProcessIoTelemetry =
+  | {
+      status: "available";
+      readBytesPerSec?: number | null;
+      writeBytesPerSec?: number | null;
+      totalReadBytes: number;
+      totalWriteBytes: number;
+    }
+  | { status: "unavailable"; reason: string };
+
+export type ProcessNetworkTelemetry = {
+  status: "unavailable";
+  reason: string;
+};
+
+export async function processTelemetry(init: RequestInit) {
+  return await json<ProcessTelemetryResponse>(
+    "/api/system/process-telemetry",
+    init,
+  );
+}
+
 /** Fetches the top-level API data. */
 export async function toplevel(init: RequestInit) {
   const resp = await json<ToplevelResponse>("/api/?days=true", init);
