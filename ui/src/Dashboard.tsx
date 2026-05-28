@@ -41,6 +41,11 @@ export interface CameraHealth {
   status: "recording" | "idle";
 }
 
+interface ActivityDay {
+  date: string;
+  duration90k: number;
+}
+
 export const getStreams = (camera: Camera): Stream[] =>
   Object.values(camera.streams).filter((stream): stream is Stream =>
     stream !== undefined,
@@ -56,6 +61,28 @@ export const getCameraHealth = (camera: Camera): CameraHealth => {
     activeStreams,
     status: activeStreams > 0 ? "recording" : "idle",
   };
+};
+
+const getRecentFrameCount = (streams: Stream[]) =>
+  streams.reduce((total, stream) => total + (stream.numRecentFrames ?? 0), 0);
+
+const getRecentRecordingCount = (streams: Stream[]) =>
+  streams.reduce(
+    (total, stream) => total + (stream.numRecentRecordings ?? 0),
+    0,
+  );
+
+const getActivityDays = (streams: Stream[]): ActivityDay[] => {
+  const days = new Map<string, number>();
+  for (const stream of streams) {
+    for (const [date, day] of Object.entries(stream.days)) {
+      days.set(date, (days.get(date) ?? 0) + day.totalDuration90k);
+    }
+  }
+  return [...days.entries()]
+    .map(([date, duration90k]) => ({ date, duration90k }))
+    .filter((day) => day.duration90k > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
 };
 
 export const getDashboardStats = (
@@ -116,6 +143,10 @@ function MetricCard({
 }
 
 function CameraFeedCard({ health }: { health: CameraHealth }) {
+  const recentFrames = getRecentFrameCount(health.streams);
+  const recentRecordings = getRecentRecordingCount(health.streams);
+  const hasRecentRecording = recentFrames > 0 || recentRecordings > 0;
+
   return (
     <Card
       data-testid={`feed-card-${health.camera.uuid}`}
@@ -158,7 +189,24 @@ function CameraFeedCard({ health }: { health: CameraHealth }) {
             mb: 2,
           }}
         >
-          <Typography color="text.secondary">No recent recording</Typography>
+          {hasRecentRecording ? (
+            <Stack spacing={0.5} sx={{ textAlign: "center" }}>
+              <Typography sx={{ fontWeight: 700 }}>Recording active</Typography>
+              <Typography variant="body2" color="text.secondary">
+                {formatCount(recentFrames, "recent frame", "recent frames")}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {formatBytes(
+                  health.streams.reduce(
+                    (total, stream) => total + (stream.recentFrameBytes ?? 0),
+                    0,
+                  ),
+                )} buffered
+              </Typography>
+            </Stack>
+          ) : (
+            <Typography color="text.secondary">No recent recording</Typography>
+          )}
         </Box>
         <Typography variant="h6" component="h3">
           {health.camera.shortName}
@@ -272,32 +320,77 @@ function QuickManagement({ cameraHealth }: { cameraHealth: CameraHealth[] }) {
   );
 }
 
-function ActivityReport() {
+function ActivityReport({ streams }: { streams: Stream[] }) {
+  const activityDays = getActivityDays(streams);
+
   return (
     <Card sx={{ border: `1px solid ${shellTokens.border.subtle}` }}>
       <CardContent>
         <Typography variant="h5" component="h2" sx={{ mb: 1, fontWeight: 700 }}>
           24h Activity Report
         </Typography>
-        <Typography color="text.secondary" sx={{ mb: 2 }}>
-          Recording activity history not available yet
-        </Typography>
-        <Box
-          sx={{
-            alignItems: "center",
-            border: `1px dashed ${shellTokens.border.subtle}`,
-            borderRadius: 1,
-            display: "flex",
-            height: 96,
-            justifyContent: "center",
-            px: 2,
-            textAlign: "center",
-          }}
-        >
-          <Typography color="text.secondary">
-            No 24h recording history available
-          </Typography>
-        </Box>
+        {activityDays.length === 0 ? (
+          <>
+            <Typography color="text.secondary" sx={{ mb: 2 }}>
+              Recording activity history not available yet
+            </Typography>
+            <Box
+              sx={{
+                alignItems: "center",
+                border: `1px dashed ${shellTokens.border.subtle}`,
+                borderRadius: 1,
+                display: "flex",
+                height: 96,
+                justifyContent: "center",
+                px: 2,
+                textAlign: "center",
+              }}
+            >
+              <Typography color="text.secondary">
+                No 24h recording history available
+              </Typography>
+            </Box>
+          </>
+        ) : (
+          <Stack spacing={1.5} data-testid="activity-history-bars">
+            <Typography color="text.secondary">
+              {formatCount(
+                activityDays.length,
+                "day with recording activity",
+                "days with recording activity",
+              )}
+            </Typography>
+            {activityDays.map((day) => (
+              <Box key={day.date}>
+                <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                    {day.date}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {Math.round(day.duration90k / 90_000)} sec recorded
+                  </Typography>
+                </Stack>
+                <Box
+                  sx={{
+                    bgcolor: "rgba(255, 87, 34, 0.18)",
+                    border: `1px solid ${shellTokens.border.subtle}`,
+                    borderRadius: 1,
+                    height: 12,
+                    overflow: "hidden",
+                  }}
+                >
+                  <Box
+                    sx={{
+                      bgcolor: shellTokens.primary.fireOrange,
+                      height: "100%",
+                      width: `${Math.max(4, Math.min(100, (day.duration90k / (24 * 60 * 60 * 90_000)) * 100))}%`,
+                    }}
+                  />
+                </Box>
+              </Box>
+            ))}
+          </Stack>
+        )}
       </CardContent>
     </Card>
   );
@@ -385,7 +478,7 @@ export default function DashboardActivity({ toplevel, Frame }: Props) {
             <QuickManagement cameraHealth={cameraHealth} />
           </Grid>
           <Grid size={{ xs: 12, lg: 8 }}>
-            <ActivityReport />
+            <ActivityReport streams={stats.streams} />
           </Grid>
         </Grid>
       </Container>

@@ -1,0 +1,5 @@
+{"type":"server-started","port":64094,"host":"0.0.0.0","url_host":"10.20.0.201","url":"http://10.20.0.201:64094","screen_dir":"/home/ai/dev/moonfire-nvr/.superpowers/brainstorm/1582552-1779876492/content","state_dir":"/home/ai/dev/moonfire-nvr/.superpowers/brainstorm/1582552-1779876492/state"}
+{"type":"screen-added","file":"/home/ai/dev/moonfire-nvr/.superpowers/brainstorm/1582552-1779876492/content/dashboard-approaches.html"}
+{"source":"user-event","type":"click","text":"A. Command Center giống ảnh\n        \n          \n            Cameras KPIRecording LoadStorageActivity\n          \n          \n            \n              Priority Feeds: recent video cards\n              24h recording/storage report\n            \n            Quick Management camera health list\n          \n        \n      \n    \n    \n      A. Command Center\n      Gần ảnh nhất, giàu thông tin, phù hợp màn desktop. Cần responsive kỹ hơn.","choice":"a","id":null,"timestamp":1779876603220}
+{"type":"screen-added","file":"/home/ai/dev/moonfire-nvr/.superpowers/brainstorm/1582552-1779876492/content/waiting-design.html"}
+{"type":"server-stopped","reason":"idle timeout"}

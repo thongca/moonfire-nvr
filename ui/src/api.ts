@@ -496,6 +496,8 @@ export interface StreamAdminEntry {
   rtspUrl?: string | null;
   rtspTransport: string;
   sampleFileDirId?: number | null;
+  retainBytes: number;
+  flushIfSec: number;
 }
 
 export interface CameraAdminEntry {
@@ -570,6 +572,8 @@ export interface PutCameraStreamRequest {
   rtspUrl?: string;
   rtspTransport?: string;
   sampleFileDirId?: number;
+  retainBytes?: number;
+  flushIfSec?: number;
 }
 
 export async function getCamerasAdmin(init: RequestInit) {

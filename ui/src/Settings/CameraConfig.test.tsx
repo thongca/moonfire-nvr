@@ -12,6 +12,18 @@ vi.mock("../api", () => ({
   deleteCamera: vi.fn(),
 }));
 
+vi.mock("../Cameras/viewModel", async () => {
+  const actual = await vi.importActual<typeof import("../Cameras/viewModel")>(
+    "../Cameras/viewModel",
+  );
+  return {
+    ...actual,
+    cameraStatus: vi.fn(() => {
+      throw new Error("CameraConfig should use cameraRecordingStatus");
+    }),
+  };
+});
+
 import * as api from "../api";
 
 afterEach(() => {
@@ -53,4 +65,76 @@ test("renders camera rows with name and IP", async () => {
 
   expect(await screen.findByText("Lobby")).toBeInTheDocument();
   expect(screen.getByText("192.168.1.50")).toBeInTheDocument();
+});
+
+test("renders recording status and retention summary", async () => {
+  vi.mocked(api.getCamerasAdmin).mockResolvedValue({
+    status: "success",
+    response: {
+      cameras: [
+        {
+          id: 1,
+          uuid: "abc-123",
+          shortName: "Lobby",
+          description: "Main entrance",
+          onvifBaseUrl: "http://192.168.1.50/onvif/device_service",
+          hasCredentials: false,
+          streams: [
+            {
+              id: 10,
+              type: "main",
+              mode: "record",
+              rtspUrl: "rtsp://192.168.1.50/main",
+              rtspTransport: "tcp",
+              sampleFileDirId: 7,
+              retainBytes: 50_000_000_000,
+              flushIfSec: 5,
+            },
+          ],
+        },
+      ],
+    },
+  } as api.FetchResult<api.GetCamerasAdminResponse>);
+
+  renderWithCtx(<CameraConfig csrf="token" />);
+
+  expect(await screen.findByText("Waiting for frames")).toBeInTheDocument();
+  expect(screen.getByText("main: configured, no frames yet")).toBeInTheDocument();
+  expect(screen.getByText("50 GB limit")).toBeInTheDocument();
+});
+
+test("renders missing storage status without offline chip", async () => {
+  vi.mocked(api.getCamerasAdmin).mockResolvedValue({
+    status: "success",
+    response: {
+      cameras: [
+        {
+          id: 1,
+          uuid: "abc-123",
+          shortName: "Lobby",
+          description: "Main entrance",
+          onvifBaseUrl: "http://192.168.1.50/onvif/device_service",
+          hasCredentials: false,
+          streams: [
+            {
+              id: 10,
+              type: "main",
+              mode: "record",
+              rtspUrl: "rtsp://192.168.1.50/main",
+              rtspTransport: "tcp",
+              sampleFileDirId: null,
+              retainBytes: 50_000_000_000,
+              flushIfSec: 5,
+            },
+          ],
+        },
+      ],
+    },
+  } as api.FetchResult<api.GetCamerasAdminResponse>);
+
+  renderWithCtx(<CameraConfig csrf="token" />);
+
+  expect(await screen.findAllByText("Needs storage")).not.toHaveLength(0);
+  expect(screen.getByText("main: select a storage directory")).toBeInTheDocument();
+  expect(screen.queryByText("OFFLINE")).not.toBeInTheDocument();
 });

@@ -27,6 +27,7 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { shellTokens } from "../theme";
+import { formatRetentionBytes, parseRetentionBytes } from "./viewModel";
 
 const STREAM_TYPES = ["main", "sub", "ext"] as const;
 type StreamTypeStr = (typeof STREAM_TYPES)[number];
@@ -36,6 +37,8 @@ interface StreamForm {
   rtspUrl: string;
   rtspTransport: string;
   sampleFileDirId: string;
+  retainBytes: string;
+  flushIfSec: string;
 }
 
 const defaultStreamForm = (): StreamForm => ({
@@ -43,7 +46,17 @@ const defaultStreamForm = (): StreamForm => ({
   rtspUrl: "",
   rtspTransport: "",
   sampleFileDirId: "",
+  retainBytes: "0",
+  flushIfSec: "120",
 });
+
+const defaultStreamErrors = (): Record<StreamTypeStr, string | null> => ({
+  main: null,
+  sub: null,
+  ext: null,
+});
+
+const flushValidationMessage = "Enter a non-negative whole number of seconds.";
 
 const streamLabel = (type_: StreamTypeStr) => type_.toUpperCase();
 
@@ -226,6 +239,10 @@ export default function AddEditDialog({
   const [createDirOpen, setCreateDirOpen] = useState(false);
   const [newDirPath, setNewDirPath] = useState("");
   const [creatingDir, setCreatingDir] = useState(false);
+  const [retentionErrors, setRetentionErrors] =
+    useState<Record<StreamTypeStr, string | null>>(defaultStreamErrors);
+  const [flushErrors, setFlushErrors] =
+    useState<Record<StreamTypeStr, string | null>>(defaultStreamErrors);
 
   const fetchSampleFileDirs = useCallback(async () => {
     setLoadingSampleFileDirs(true);
@@ -265,6 +282,8 @@ export default function AddEditDialog({
             rtspUrl: st.rtspUrl ?? "",
             rtspTransport: st.rtspTransport,
             sampleFileDirId: st.sampleFileDirId?.toString() ?? "",
+            retainBytes: formatRetentionBytes(st.retainBytes ?? 0),
+            flushIfSec: (st.flushIfSec ?? 0).toString(),
           };
         }
       }
@@ -282,6 +301,8 @@ export default function AddEditDialog({
       });
     }
     setActiveStream("main");
+    setRetentionErrors(defaultStreamErrors());
+    setFlushErrors(defaultStreamErrors());
   }, [open, camera, fetchSampleFileDirs]);
 
   const updateStream = (
@@ -289,15 +310,67 @@ export default function AddEditDialog({
     field: keyof StreamForm,
     value: string,
   ) => {
+    if (field === "retainBytes") {
+      setRetentionErrors((prev) => ({ ...prev, [type_]: null }));
+    }
+    if (field === "flushIfSec") {
+      setFlushErrors((prev) => ({ ...prev, [type_]: null }));
+    }
     setStreams((prev) => ({
       ...prev,
       [type_]: { ...prev[type_], [field]: value },
     }));
   };
 
+  const parseStreamRetention = (input: string) => {
+    if (input.trim().toLowerCase() === "unlimited") {
+      return { ok: true as const, bytes: 0 };
+    }
+    return parseRetentionBytes(input);
+  };
+
+  const validateStreams = () => {
+    for (const type_ of STREAM_TYPES) {
+      const sf = streams[type_];
+      const retention = parseStreamRetention(sf.retainBytes);
+      if (!retention.ok) {
+        setActiveStream(type_);
+        setRetentionErrors((prev) => ({ ...prev, [type_]: retention.message }));
+        return false;
+      }
+      const flushInput = sf.flushIfSec.trim();
+      const flushIfSec = Number(flushInput);
+      if (flushInput === "" || !Number.isInteger(flushIfSec) || flushIfSec < 0) {
+        setActiveStream(type_);
+        setFlushErrors((prev) => ({
+          ...prev,
+          [type_]: flushValidationMessage,
+        }));
+        return false;
+      }
+    }
+    return true;
+  };
+
   const saveStreams = async (cameraId: number) => {
     for (const type_ of STREAM_TYPES) {
       const sf = streams[type_];
+      const retention = parseStreamRetention(sf.retainBytes);
+      if (!retention.ok) {
+        setActiveStream(type_);
+        setRetentionErrors((prev) => ({ ...prev, [type_]: retention.message }));
+        return false;
+      }
+      const flushInput = sf.flushIfSec.trim();
+      const flushIfSec = Number(flushInput);
+      if (flushInput === "" || !Number.isInteger(flushIfSec) || flushIfSec < 0) {
+        setActiveStream(type_);
+        setFlushErrors((prev) => ({
+          ...prev,
+          [type_]: flushValidationMessage,
+        }));
+        return false;
+      }
       const streamResp = await api.updateCameraStream(
         cameraId,
         type_,
@@ -309,6 +382,8 @@ export default function AddEditDialog({
           sampleFileDirId: sf.sampleFileDirId
             ? parseInt(sf.sampleFileDirId, 10)
             : undefined,
+          retainBytes: retention.bytes,
+          flushIfSec,
         },
         {},
       );
@@ -356,6 +431,7 @@ export default function AddEditDialog({
       snackbars.enqueue({ message: "Short name is required" });
       return;
     }
+    if (!validateStreams()) return;
     setSaving(true);
     try {
       if (isEdit) {
@@ -397,6 +473,9 @@ export default function AddEditDialog({
       setSaving(false);
     }
   };
+
+  const activeRetentionError = retentionErrors[activeStream];
+  const activeFlushError = flushErrors[activeStream];
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -643,6 +722,46 @@ export default function AddEditDialog({
                   >
                     Create directory
                   </Button>
+                </Grid>
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <TextField
+                    label="Retention Limit"
+                    value={streams[activeStream].retainBytes}
+                    onChange={(e) =>
+                      updateStream(activeStream, "retainBytes", e.target.value)
+                    }
+                    error={activeRetentionError !== null}
+                    helperText={
+                      activeRetentionError ??
+                      "Use 0 for unlimited, or values like 50 GB, 1 TB, 500 MB."
+                    }
+                    size="small"
+                    fullWidth
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <TextField
+                    label="Metadata Flush Interval"
+                    type="number"
+                    value={streams[activeStream].flushIfSec}
+                    onChange={(e) =>
+                      updateStream(activeStream, "flushIfSec", e.target.value)
+                    }
+                    error={activeFlushError !== null}
+                    helperText={
+                      activeFlushError ??
+                      "Seconds; 120 is recommended for normal recording."
+                    }
+                    size="small"
+                    fullWidth
+                    slotProps={{ htmlInput: { min: 0, step: 1 } }}
+                  />
+                </Grid>
+                <Grid size={{ xs: 12 }}>
+                  <Alert severity="info">
+                    Moonfire currently retains recordings by storage quota, not by
+                    number of days.
+                  </Alert>
                 </Grid>
                 {createDirOpen && (
                   <Grid size={{ xs: 12 }}>

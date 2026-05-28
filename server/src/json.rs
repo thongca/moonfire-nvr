@@ -701,6 +701,10 @@ pub struct PutCameraStreamRequest {
     #[serde(default)]
     pub rtsp_transport: String, // "tcp", "udp", or ""
     pub sample_file_dir_id: Option<i32>,
+    #[serde(default)]
+    pub retain_bytes: Option<i64>,
+    #[serde(default)]
+    pub flush_if_sec: Option<u32>,
 }
 
 /// Response body for `POST /api/cameras`.
@@ -733,6 +737,8 @@ pub struct StreamAdminEntry {
     pub rtsp_url: Option<String>,
     pub rtsp_transport: String,
     pub sample_file_dir_id: Option<i32>,
+    pub retain_bytes: i64,
+    pub flush_if_sec: u32,
 }
 
 /// Response body for `GET /api/cameras`.

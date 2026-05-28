@@ -1,0 +1,59 @@
+<h2>Add Camera + Tabs: chọn hướng sửa</h2>
+<p class="subtitle">Mục tiêu: form thêm camera trực quan hơn và tab navigation đúng kiểu Command Center/Stitch, nhưng vẫn giữ behavior/API hiện có.</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">A. Wizard add camera</div>
+        <div class="mockup-body">
+          <div style="display:grid;grid-template-columns:170px 1fr;gap:14px">
+            <div>
+              <div class="placeholder" style="height:38px;margin-bottom:8px">1 Identity</div>
+              <div class="placeholder" style="height:38px;margin-bottom:8px">2 Connection</div>
+              <div class="placeholder" style="height:38px">3 Streams</div>
+            </div>
+            <div>
+              <div class="placeholder" style="height:42px;margin-bottom:8px">Camera name + description</div>
+              <div class="placeholder" style="height:42px;margin-bottom:8px">ONVIF URL + credentials</div>
+              <div class="placeholder" style="height:86px">Main/Sub/Ext stream cards</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body"><h3>A. Guided Wizard</h3><p>Dễ hiểu nhất cho add camera; giảm form dài. Nhiều thay đổi component hơn.</p></div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">B. Single dialog, sectioned</div>
+        <div class="mockup-body">
+          <div class="placeholder" style="height:44px;margin-bottom:10px">Camera Identity</div>
+          <div class="placeholder" style="height:44px;margin-bottom:10px">Connection + Credentials</div>
+          <div style="display:flex;gap:8px;margin-bottom:10px"><div class="placeholder" style="flex:1;height:28px">MAIN</div><div class="placeholder" style="flex:1;height:28px">SUB</div><div class="placeholder" style="flex:1;height:28px">EXT</div></div>
+          <div class="placeholder" style="height:92px">Selected stream fields only</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body"><h3>B. Sectioned Command Dialog</h3><p>Giữ flow cũ nhưng trực quan hơn; nhanh implement; gần screenshot hiện tại nhất.</p></div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">C. Management page first</div>
+        <div class="mockup-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="placeholder" style="height:150px">Camera list + status</div>
+            <div class="placeholder" style="height:150px">Inline add/edit panel</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body"><h3>C. Inline Add/Edit Panel</h3><p>Rất trực quan cho desktop, nhưng đổi layout Cameras page nhiều nhất.</p></div>
+  </div>
+</div>
+
+<div class="section"><h3>Khuyến nghị</h3><p>Chọn B cho vòng này: sửa đúng điểm đau trong screenshot (form dài, tabs chưa đúng style), ít rủi ro, vẫn theo ngôn ngữ Stitch dark/orange.</p></div>

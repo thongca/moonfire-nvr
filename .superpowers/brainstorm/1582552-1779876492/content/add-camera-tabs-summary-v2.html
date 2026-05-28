@@ -1,0 +1,35 @@
+<h2>Add Camera: Tab + Summary Cards</h2>
+<p class="subtitle">Option 3 đã chọn: ba stream summary cards giúp thấy trạng thái MAIN/SUB/EXT ngay lập tức, click card để mở tab cấu hình chi tiết.</p>
+
+<div class="mockup">
+  <div class="mockup-header">Add Camera / Edit Camera dialog</div>
+  <div class="mockup-body">
+    <div class="placeholder" style="height:32px;margin-bottom:10px;text-align:left;padding-left:12px">Camera Identity: Short Name, Description</div>
+    <div class="placeholder" style="height:32px;margin-bottom:14px;text-align:left;padding-left:12px">Connection: ONVIF Base URL, Username, Password</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+      <div style="border:1px solid #ff5722;border-radius:6px;padding:10px;background:#24201e">
+        <div style="font-size:12px;color:#ff5722;font-weight:700">MAIN</div>
+        <div style="font-size:18px;margin-top:6px">Record</div>
+        <div style="font-size:12px;color:#aaa;margin-top:4px">RTSP configured · TCP</div>
+      </div>
+      <div style="border:1px solid #555;border-radius:6px;padding:10px;background:#202020">
+        <div style="font-size:12px;color:#bbb;font-weight:700">SUB</div>
+        <div style="font-size:18px;margin-top:6px">Off</div>
+        <div style="font-size:12px;color:#888;margin-top:4px">No URL · Auto</div>
+      </div>
+      <div style="border:1px solid #555;border-radius:6px;padding:10px;background:#202020">
+        <div style="font-size:12px;color:#bbb;font-weight:700">EXT</div>
+        <div style="font-size:18px;margin-top:6px">Off</div>
+        <div style="font-size:12px;color:#888;margin-top:4px">No URL · Auto</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <div style="flex:1;border-bottom:2px solid #ff5722;padding:8px;text-align:center;color:#ff5722;font-weight:700">MAIN</div>
+      <div style="flex:1;border-bottom:1px solid #555;padding:8px;text-align:center;color:#aaa">SUB</div>
+      <div style="flex:1;border-bottom:1px solid #555;padding:8px;text-align:center;color:#aaa">EXT</div>
+    </div>
+    <div class="placeholder" style="height:120px;text-align:left;padding:12px">Selected MAIN stream: Mode, RTSP URL, Transport, Sample File Dir ID + helper text</div>
+  </div>
+</div>
+
+<div class="section"><h3>Thiết kế đề xuất</h3><p>Dialog sẽ chia thành 3 cụm rõ ràng: Camera Identity, Connection, Stream Routing. Summary cards hiển thị trạng thái tức thì và cũng là shortcut để đổi tab. Tab bên dưới vẫn giữ MAIN/SUB/EXT đúng thiết kế, nhưng chỉ show form stream đang active để tránh scroll dài.</p></div>

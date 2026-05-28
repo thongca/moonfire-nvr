@@ -35,7 +35,10 @@ impl Service {
         caller: Caller,
     ) -> ResponseResult {
         if !(caller.permissions.read_camera_configs || caller.permissions.admin_users) {
-            bail!(Unauthenticated, msg("must have read_camera_configs permission"));
+            bail!(
+                Unauthenticated,
+                msg("must have read_camera_configs permission")
+            );
         }
         let l = self.db.lock();
         let sample_file_dirs = l

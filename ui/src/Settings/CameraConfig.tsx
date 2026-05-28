@@ -20,7 +20,11 @@ import TableRow from "@mui/material/TableRow";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import * as api from "../api";
-import { cameraIp, cameraStatus } from "../Cameras/viewModel";
+import {
+  cameraIp,
+  cameraRecordingStatus,
+  retentionSummary,
+} from "../Cameras/viewModel";
 import AddEditDialog from "../Cameras/AddEditDialog";
 import { IpChip, StatusDot } from "../Cameras/CameraRowPrimitives";
 import { useSnackbars } from "../snackbars";
@@ -125,24 +129,28 @@ export default function CameraConfig({ csrf }: Props) {
         <Table size="small">
           <TableHead>
             <TableRow>
-              {["Camera Name", "IP Address", "Resolution", "Bitrate", "Actions"].map(
-                (col) => (
-                  <TableCell
-                    key={col}
-                    sx={{
-                      color: shellTokens.text.secondary,
-                      fontSize: "0.6875rem",
-                      fontWeight: 700,
-                      letterSpacing: "0.05em",
-                      textTransform: "uppercase",
-                      borderBottom: `1px solid ${shellTokens.border.subtle}`,
-                      py: 1.25,
-                    }}
-                  >
-                    {col}
-                  </TableCell>
-                ),
-              )}
+              {[
+                "Camera Name",
+                "IP Address",
+                "Recording Status",
+                "Retention",
+                "Actions",
+              ].map((col) => (
+                <TableCell
+                  key={col}
+                  sx={{
+                    color: shellTokens.text.secondary,
+                    fontSize: "0.6875rem",
+                    fontWeight: 700,
+                    letterSpacing: "0.05em",
+                    textTransform: "uppercase",
+                    borderBottom: `1px solid ${shellTokens.border.subtle}`,
+                    py: 1.25,
+                  }}
+                >
+                  {col}
+                </TableCell>
+              ))}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -165,15 +173,18 @@ export default function CameraConfig({ csrf }: Props) {
             ) : (
               cameras.map((camera) => {
                 const ip = cameraIp(camera);
-                const status = cameraStatus(camera);
-                const online = status.label === "Online";
+                const recordingStatus = cameraRecordingStatus(camera);
+                const retention = retentionSummary(camera);
+                const healthy = recordingStatus.color === "success";
                 return (
                   <TableRow
                     key={camera.id}
                     sx={{
-                      bgcolor: online
+                      bgcolor: healthy
                         ? undefined
-                        : "rgba(255, 92, 92, 0.05)",
+                        : recordingStatus.color === "warning"
+                          ? "rgba(245, 165, 36, 0.06)"
+                          : "rgba(255, 92, 92, 0.05)",
                       "&:last-child td": { border: 0 },
                     }}
                   >
@@ -186,7 +197,7 @@ export default function CameraConfig({ csrf }: Props) {
                           gap: 1,
                         }}
                       >
-                        <StatusDot online={online} />
+                        <StatusDot online={healthy} />
                         <Typography
                           variant="body2"
                           sx={{
@@ -196,24 +207,6 @@ export default function CameraConfig({ csrf }: Props) {
                         >
                           {camera.shortName}
                         </Typography>
-                        {!online && (
-                          <Box
-                            component="span"
-                            sx={{
-                              fontSize: "0.625rem",
-                              fontWeight: 700,
-                              letterSpacing: "0.05em",
-                              color: "#ff5c5c",
-                              bgcolor: "rgba(255, 92, 92, 0.12)",
-                              border: "1px solid rgba(255, 92, 92, 0.3)",
-                              px: 0.75,
-                              py: 0.25,
-                              borderRadius: 0.5,
-                            }}
-                          >
-                            OFFLINE
-                          </Box>
-                        )}
                       </Box>
                     </TableCell>
 
@@ -222,17 +215,31 @@ export default function CameraConfig({ csrf }: Props) {
                       <IpChip ip={ip} />
                     </TableCell>
 
-                    {/* Resolution */}
+                    {/* Recording Status */}
                     <TableCell sx={{ py: 1.25 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        —
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: 600,
+                          color:
+                            recordingStatus.color === "danger"
+                              ? "#ff5c5c"
+                              : recordingStatus.color === "warning"
+                                ? "#f5a524"
+                                : shellTokens.text.primary,
+                        }}
+                      >
+                        {recordingStatus.label}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {recordingStatus.detail}
                       </Typography>
                     </TableCell>
 
-                    {/* Bitrate */}
+                    {/* Retention */}
                     <TableCell sx={{ py: 1.25 }}>
                       <Typography variant="body2" color="text.secondary">
-                        —
+                        {retention}
                       </Typography>
                     </TableCell>
 

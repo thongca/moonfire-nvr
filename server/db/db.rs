@@ -2206,6 +2206,13 @@ impl<C: Clocks + Clone> Database<C> {
             }
         };
 
+        std::fs::create_dir_all(&path).map_err(|e| {
+            err!(
+                Unknown,
+                msg("unable to create sample file directory {}", path.display()),
+                source(e)
+            )
+        })?;
         let pool = dir::Pool::new(cfg, FastHashSet::default());
         pool.open(DIR_POOL_WORKERS).await?;
 
@@ -2506,6 +2513,23 @@ mod tests {
         let db = Database::new(clock::RealClocks {}, conn, true).unwrap();
         let db = db.lock();
         assert_eq!(0, db.cameras_by_id().values().count());
+    }
+
+    #[tokio::test]
+    async fn add_sample_file_dir_creates_missing_directory() {
+        testutil::init();
+        let conn = setup_conn();
+        let db = Database::new(clock::RealClocks {}, conn, true).unwrap();
+        let tmpdir = tempfile::Builder::new()
+            .prefix("moonfire-nvr-test")
+            .tempdir()
+            .unwrap();
+        let path = tmpdir.path().join("new-parent").join("new-storage-dir");
+
+        let id = db.add_sample_file_dir(path.clone()).await.unwrap();
+
+        assert!(path.is_dir());
+        assert!(db.lock().sample_file_dirs_by_id().contains_key(&id));
     }
 
     /// Basic test of the full lifecycle of recording. Does not exercise error cases.

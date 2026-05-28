@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: GPL-v3.0-or-later WITH GPL-3.0-linking-exception.
 
 pub mod accept;
+mod cameras_admin;
 mod live;
 mod path;
 mod sample_file_dirs;
 mod session;
-mod cameras_admin;
 mod signals;
 mod static_file;
 mod users;
@@ -294,7 +294,9 @@ impl Service {
             ),
             Path::CameraStreamAdmin(id, type_) => (
                 CacheControl::PrivateDynamic,
-                Arc::clone(&self).camera_stream_admin(req, caller, id, type_).await?,
+                Arc::clone(&self)
+                    .camera_stream_admin(req, caller, id, type_)
+                    .await?,
             ),
         };
         match cache {
@@ -684,7 +686,35 @@ mod tests {
     // use futures::future::FutureExt;
     // use http::{header, Request};
     use http::header;
+    use serde::Deserialize;
     use std::sync::Arc;
+
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct PostCameraResponse {
+        camera_id: i32,
+    }
+
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct GetCamerasAdminResponse {
+        cameras: Vec<CameraAdminEntry>,
+    }
+
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct CameraAdminEntry {
+        id: i32,
+        streams: Vec<StreamAdminEntry>,
+    }
+
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct StreamAdminEntry {
+        type_: String,
+        retain_bytes: i64,
+        flush_if_sec: u32,
+    }
 
     pub(super) struct Server {
         pub(super) db: TestDb<base::clock::RealClocks>,
@@ -782,6 +812,208 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), reqwest::StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn camera_stream_admin_round_trips_retention_fields() {
+        testutil::init();
+        let s = Server::new(Some(db::Permissions {
+            admin_users: true,
+            ..Default::default()
+        }))
+        .await;
+        let client = reqwest::Client::new();
+
+        let create_resp: PostCameraResponse = client
+            .post(format!("{}/api/cameras", s.base_url))
+            .json(&serde_json::json!({
+                "shortName": "retention-cam",
+                "description": "Retention test camera"
+            }))
+            .send()
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+
+        client
+            .put(format!(
+                "{}/api/cameras/{}/streams/main",
+                s.base_url, create_resp.camera_id
+            ))
+            .json(&serde_json::json!({
+                "mode": "record",
+                "rtspUrl": "rtsp://example.test/main",
+                "rtspTransport": "tcp",
+                "sampleFileDirId": null,
+                "retainBytes": 50_000_000_000_i64,
+                "flushIfSec": 120
+            }))
+            .send()
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap();
+
+        let resp: GetCamerasAdminResponse = client
+            .get(format!("{}/api/cameras", s.base_url))
+            .send()
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+
+        let camera = resp
+            .cameras
+            .iter()
+            .find(|camera| camera.id == create_resp.camera_id)
+            .unwrap();
+        let main = camera
+            .streams
+            .iter()
+            .find(|stream| stream.type_ == "main")
+            .unwrap();
+        assert_eq!(main.retain_bytes, 50_000_000_000);
+        assert_eq!(main.flush_if_sec, 120);
+    }
+
+    #[tokio::test]
+    async fn camera_stream_admin_rejects_negative_retain_bytes() {
+        testutil::init();
+        let s = Server::new(Some(db::Permissions {
+            admin_users: true,
+            ..Default::default()
+        }))
+        .await;
+        let client = reqwest::Client::new();
+
+        let create_resp: PostCameraResponse = client
+            .post(format!("{}/api/cameras", s.base_url))
+            .json(&serde_json::json!({
+                "shortName": "negative-retention-cam",
+                "description": "Negative retention test camera"
+            }))
+            .send()
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+
+        let resp = client
+            .put(format!(
+                "{}/api/cameras/{}/streams/main",
+                s.base_url, create_resp.camera_id
+            ))
+            .json(&serde_json::json!({
+                "mode": "record",
+                "rtspUrl": "rtsp://example.test/main",
+                "rtspTransport": "tcp",
+                "sampleFileDirId": null,
+                "retainBytes": -1,
+                "flushIfSec": 120
+            }))
+            .send()
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), reqwest::StatusCode::BAD_REQUEST);
+        let body = resp.text().await.unwrap();
+        assert!(body.contains("retainBytes must not be negative"), "{body}");
+    }
+
+    #[tokio::test]
+    async fn camera_stream_admin_preserves_omitted_retention_fields() {
+        testutil::init();
+        let s = Server::new(Some(db::Permissions {
+            admin_users: true,
+            ..Default::default()
+        }))
+        .await;
+        let client = reqwest::Client::new();
+
+        let create_resp: PostCameraResponse = client
+            .post(format!("{}/api/cameras", s.base_url))
+            .json(&serde_json::json!({
+                "shortName": "preserve-retention-cam",
+                "description": "Preserve retention test camera"
+            }))
+            .send()
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+
+        client
+            .put(format!(
+                "{}/api/cameras/{}/streams/main",
+                s.base_url, create_resp.camera_id
+            ))
+            .json(&serde_json::json!({
+                "mode": "record",
+                "rtspUrl": "rtsp://example.test/main",
+                "rtspTransport": "tcp",
+                "sampleFileDirId": null,
+                "retainBytes": 50_000_000_000_i64,
+                "flushIfSec": 120
+            }))
+            .send()
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap();
+
+        client
+            .put(format!(
+                "{}/api/cameras/{}/streams/main",
+                s.base_url, create_resp.camera_id
+            ))
+            .json(&serde_json::json!({
+                "mode": "record",
+                "rtspUrl": "rtsp://example.test/main2",
+                "rtspTransport": "udp",
+                "sampleFileDirId": null
+            }))
+            .send()
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap();
+
+        let resp: GetCamerasAdminResponse = client
+            .get(format!("{}/api/cameras", s.base_url))
+            .send()
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+
+        let camera = resp
+            .cameras
+            .iter()
+            .find(|camera| camera.id == create_resp.camera_id)
+            .unwrap();
+        let main = camera
+            .streams
+            .iter()
+            .find(|stream| stream.type_ == "main")
+            .unwrap();
+        assert_eq!(main.retain_bytes, 50_000_000_000);
+        assert_eq!(main.flush_if_sec, 120);
     }
 
     #[test]

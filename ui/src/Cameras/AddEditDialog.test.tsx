@@ -223,3 +223,188 @@ test("creates camera then saves configured main stream", async () => {
     sampleFileDirId: 7,
   });
 });
+
+test("renders retention and flush settings for an existing stream", async () => {
+  mockSampleFileDirs([{ id: 7, path: "/var/lib/moonfire-nvr/sample" }]);
+
+  renderWithCtx(
+    <AddEditDialog
+      open={true}
+      camera={{
+        id: 1,
+        uuid: "camera-1",
+        shortName: "Front Door",
+        description: "",
+        hasCredentials: false,
+        streams: [
+          {
+            id: 10,
+            type: "main",
+            mode: "record",
+            rtspUrl: "rtsp://camera/main",
+            rtspTransport: "tcp",
+            sampleFileDirId: 7,
+            retainBytes: 50_000_000_000,
+            flushIfSec: 120,
+          },
+        ],
+      }}
+      csrf="csrf-token"
+      onClose={() => {}}
+      onSaved={() => {}}
+    />,
+  );
+
+  expect(await screen.findByLabelText("Retention Limit")).toHaveValue("50 GB");
+  expect(screen.getByLabelText("Metadata Flush Interval")).toHaveValue(120);
+  expect(
+    screen.getByText(
+      "Moonfire currently retains recordings by storage quota, not by number of days.",
+    ),
+  ).toBeInTheDocument();
+});
+
+test("saves parsed retention and flush settings", async () => {
+  const user = userEvent.setup();
+  let streamBody: any = null;
+
+  server.use(
+    http.post("/api/cameras", () => HttpResponse.json({ cameraId: 42 })),
+    http.put("/api/cameras/42/streams/main", async ({ request }) => {
+      streamBody = await request.json();
+      return new HttpResponse(null, { status: 204 });
+    }),
+    http.put("/api/cameras/42/streams/sub", () =>
+      new HttpResponse(null, { status: 204 }),
+    ),
+    http.put("/api/cameras/42/streams/ext", () =>
+      new HttpResponse(null, { status: 204 }),
+    ),
+  );
+  mockSampleFileDirs();
+  renderAddDialog();
+
+  await user.type(screen.getByLabelText(/Short Name/), "Front Door");
+  await user.click(screen.getByLabelText("Mode"));
+  await user.click(screen.getByRole("option", { name: "Record" }));
+  await user.type(screen.getByLabelText("RTSP URL"), "rtsp://camera/main");
+  await user.click(screen.getByLabelText("Storage Directory"));
+  await user.click(
+    screen.getByRole("option", { name: "Dir 7 — /var/lib/moonfire-nvr/sample" }),
+  );
+  await user.clear(screen.getByLabelText("Retention Limit"));
+  await user.type(screen.getByLabelText("Retention Limit"), "50 GB");
+  await user.clear(screen.getByLabelText("Metadata Flush Interval"));
+  await user.type(screen.getByLabelText("Metadata Flush Interval"), "120");
+  await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+  await waitFor(() => expect(streamBody).not.toBeNull());
+  expect(streamBody).toMatchObject({
+    retainBytes: 50_000_000_000,
+    flushIfSec: 120,
+  });
+});
+
+test("blocks saving invalid retention input", async () => {
+  const user = userEvent.setup();
+  let createCalled = false;
+  server.use(
+    http.post("/api/cameras", () => {
+      createCalled = true;
+      return HttpResponse.json({ cameraId: 42 });
+    }),
+  );
+  mockSampleFileDirs();
+  renderAddDialog();
+
+  await user.type(screen.getByLabelText(/Short Name/), "Front Door");
+  await user.clear(screen.getByLabelText("Retention Limit"));
+  await user.type(screen.getByLabelText("Retention Limit"), "seven days");
+  await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+  expect(
+    await screen.findByText("Enter a size like 50 GB, 1 TB, 500 MB, or 0."),
+  ).toBeInTheDocument();
+  expect(createCalled).toBe(false);
+
+  await user.clear(screen.getByLabelText("Retention Limit"));
+  await user.type(screen.getByLabelText("Retention Limit"), "50 GB");
+  expect(
+    screen.queryByText("Enter a size like 50 GB, 1 TB, 500 MB, or 0."),
+  ).not.toBeInTheDocument();
+});
+
+test("clears invalid flush interval error after editing", async () => {
+  const user = userEvent.setup();
+  let createCalled = false;
+  server.use(
+    http.post("/api/cameras", () => {
+      createCalled = true;
+      return HttpResponse.json({ cameraId: 42 });
+    }),
+  );
+  mockSampleFileDirs();
+  renderAddDialog();
+
+  await user.type(screen.getByLabelText(/Short Name/), "Front Door");
+  await user.clear(screen.getByLabelText("Metadata Flush Interval"));
+  await user.type(screen.getByLabelText("Metadata Flush Interval"), "-1");
+  await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+  expect(
+    await screen.findByText("Enter a non-negative whole number of seconds."),
+  ).toBeInTheDocument();
+  expect(createCalled).toBe(false);
+
+  await user.clear(screen.getByLabelText("Metadata Flush Interval"));
+  await user.type(screen.getByLabelText("Metadata Flush Interval"), "120");
+  expect(
+    screen.queryByText("Enter a non-negative whole number of seconds."),
+  ).not.toBeInTheDocument();
+});
+
+test("blocks saving empty flush interval input", async () => {
+  const user = userEvent.setup();
+  let createCalled = false;
+  server.use(
+    http.post("/api/cameras", () => {
+      createCalled = true;
+      return HttpResponse.json({ cameraId: 42 });
+    }),
+  );
+  mockSampleFileDirs();
+  renderAddDialog();
+
+  await user.type(screen.getByLabelText(/Short Name/), "Front Door");
+  await user.clear(screen.getByLabelText("Metadata Flush Interval"));
+  await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+  expect(
+    await screen.findByText("Enter a non-negative whole number of seconds."),
+  ).toBeInTheDocument();
+  expect(createCalled).toBe(false);
+});
+
+test("does not show stream validation errors on other streams", async () => {
+  const user = userEvent.setup();
+  server.use(
+    http.post("/api/cameras", () => HttpResponse.json({ cameraId: 42 })),
+  );
+  mockSampleFileDirs();
+  renderAddDialog();
+
+  await user.type(screen.getByLabelText(/Short Name/), "Front Door");
+  await user.click(screen.getByTestId("stream-summary-sub"));
+  await user.clear(screen.getByLabelText("Retention Limit"));
+  await user.type(screen.getByLabelText("Retention Limit"), "seven days");
+  await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
+  expect(
+    await screen.findByText("Enter a size like 50 GB, 1 TB, 500 MB, or 0."),
+  ).toBeInTheDocument();
+
+  await user.click(screen.getByTestId("stream-summary-main"));
+  expect(
+    screen.queryByText("Enter a size like 50 GB, 1 TB, 500 MB, or 0."),
+  ).not.toBeInTheDocument();
+});

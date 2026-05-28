@@ -1,0 +1,71 @@
+<h2>Dashboard redesign: chọn hướng layout</h2>
+<p class="subtitle">Tất cả phương án đều theo Hybrid: dữ liệu thật trước, placeholder rõ ràng khi backend chưa có telemetry.</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">A. Command Center giống ảnh</div>
+        <div class="mockup-body">
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px">
+            <div class="placeholder">Cameras KPI</div><div class="placeholder">Recording Load</div><div class="placeholder">Storage</div><div class="placeholder">Activity</div>
+          </div>
+          <div style="display:grid;grid-template-columns:2fr 1fr;gap:12px">
+            <div>
+              <div class="placeholder" style="height:110px;margin-bottom:8px">Priority Feeds: recent video cards</div>
+              <div class="placeholder" style="height:70px">24h recording/storage report</div>
+            </div>
+            <div class="placeholder" style="height:195px">Quick Management camera health list</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. Command Center</h3>
+      <p>Gần ảnh nhất, giàu thông tin, phù hợp màn desktop. Cần responsive kỹ hơn.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">B. Operations Overview cân bằng</div>
+        <div class="mockup-body">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px">
+            <div class="placeholder">Cameras</div><div class="placeholder">Storage</div><div class="placeholder">Recent Activity</div>
+          </div>
+          <div class="placeholder" style="height:120px;margin-bottom:8px">Recent video carousel/grid</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div class="placeholder">Camera health</div><div class="placeholder">24h report</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. Operations Overview</h3>
+      <p>Ít dày đặc hơn, dễ implement và mobile-friendly hơn, nhưng không “ngầu” bằng ảnh.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">C. Real-data Dashboard tối giản</div>
+        <div class="mockup-body">
+          <div class="placeholder" style="height:55px;margin-bottom:8px">System summary</div>
+          <div class="placeholder" style="height:90px;margin-bottom:8px">Camera list with recent recording status</div>
+          <div class="placeholder" style="height:80px">Reports only when data exists</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. Practical Real-data</h3>
+      <p>Ít placeholder nhất, an toàn với dữ liệu hiện có, nhưng xa ảnh tham chiếu nhất.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Khuyến nghị</h3>
+  <p>Chọn A: nó khôi phục cảm giác monitor/report như ảnh, trong khi vẫn giữ nguyên tắc dữ liệu thật và empty state rõ ràng.</p>
+</div>

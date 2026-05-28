@@ -32,6 +32,9 @@ export interface Stream {
   fsBytes: number;
   days: Record<string, Day>;
   record: boolean;
+  numRecentRecordings?: number;
+  numRecentFrames?: number;
+  recentFrameBytes?: number;
 }
 
 export interface Day {

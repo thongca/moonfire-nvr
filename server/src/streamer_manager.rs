@@ -114,10 +114,7 @@ impl StreamerManager {
         }
     }
 
-    fn do_start_stream(
-        &mut self,
-        stream_id: i32,
-    ) -> Result<JoinHandle<()>, base::Error> {
+    fn do_start_stream(&mut self, stream_id: i32) -> Result<JoinHandle<()>, base::Error> {
         let l = self.db.lock();
         let stream = l
             .streams_by_id()
@@ -126,10 +123,16 @@ impl StreamerManager {
             .clone();
         let locked = stream.inner.lock();
         if locked.config.mode != db::json::STREAM_MODE_RECORD {
-            bail!(InvalidArgument, msg("stream {stream_id} is not in record mode"));
+            bail!(
+                InvalidArgument,
+                msg("stream {stream_id} is not in record mode")
+            );
         }
         if locked.sample_file_dir.is_none() {
-            bail!(InvalidArgument, msg("stream {stream_id} has no sample file dir"));
+            bail!(
+                InvalidArgument,
+                msg("stream {stream_id} has no sample file dir")
+            );
         }
         let camera = l
             .cameras_by_id()

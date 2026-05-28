@@ -40,6 +40,9 @@ function makeToplevelFixture(): api.ToplevelResponse {
     fsBytes: 2300,
     days: {},
     record: true,
+    numRecentRecordings: 0,
+    numRecentFrames: 0,
+    recentFrameBytes: 0,
   };
 
   const subStream: Stream = {
@@ -54,6 +57,9 @@ function makeToplevelFixture(): api.ToplevelResponse {
     fsBytes: 1000,
     days: {},
     record: false,
+    numRecentRecordings: 0,
+    numRecentFrames: 0,
+    recentFrameBytes: 0,
   };
 
   frontDoor.streams = {
@@ -152,6 +158,43 @@ test("shows activity report placeholder", () => {
   expect(screen.getByText("Recording activity history not available yet")).toBeInTheDocument();
   expect(screen.getByText("No 24h recording history available")).toBeInTheDocument();
   expect(screen.queryByTestId("activity-history-bars")).not.toBeInTheDocument();
+});
+
+test("shows active recording status when recent frames are available", () => {
+  const toplevel = makeToplevelFixture();
+  const stream = toplevel.cameras[0].streams.main!;
+  stream.numRecentRecordings = 1;
+  stream.numRecentFrames = 19;
+  stream.recentFrameBytes = 1_379_346;
+  stream.totalSampleFileBytes = 45_479_186;
+  stream.fsBytes = 45_481_984;
+
+  renderWithCtx(<DashboardActivity toplevel={toplevel} Frame={Frame} />);
+
+  const frontDoorCard = screen.getByTestId("feed-card-front-door");
+  expect(within(frontDoorCard).getByText("Recording active")).toBeInTheDocument();
+  expect(within(frontDoorCard).getByText("19 recent frames")).toBeInTheDocument();
+  expect(within(frontDoorCard).queryByText("No recent recording")).not.toBeInTheDocument();
+});
+
+test("shows 24h activity report from real day data", () => {
+  const toplevel = makeToplevelFixture();
+  const stream = toplevel.cameras[0].streams.main!;
+  stream.days = {
+    "2026-05-28": {
+      startTime90k: 160_193_376_000_000,
+      endTime90k: 160_201_152_000_000,
+      totalDuration90k: 8_095_042,
+    },
+  };
+
+  renderWithCtx(<DashboardActivity toplevel={toplevel} Frame={Frame} />);
+
+  expect(screen.getByRole("heading", { name: "24h Activity Report" })).toBeInTheDocument();
+  expect(screen.getByText("1 day with recording activity")).toBeInTheDocument();
+  expect(screen.getByText("2026-05-28")).toBeInTheDocument();
+  expect(screen.getByTestId("activity-history-bars")).toBeInTheDocument();
+  expect(screen.queryByText("Recording activity history not available yet")).not.toBeInTheDocument();
 });
 
 test("formats byte counts consistently through terabytes", () => {

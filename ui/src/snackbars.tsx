@@ -148,12 +148,14 @@ export class SnackbarProvider
   render(): React.JSX.Element {
     const first = this.state.queue[0];
     const snackbars: Snackbars = this;
+    const { key: firstKey, ...firstProps } = first ?? { key: undefined };
     return (
       <ctx.Provider value={snackbars}>
         {this.props.children}
-        {first === undefined ? null : (
+        {first === undefined || firstProps === undefined ? null : (
           <Snackbar
-            {...first}
+            key={firstKey}
+            {...firstProps}
             anchorOrigin={{
               vertical: "bottom",
               horizontal: "left",
@@ -165,14 +167,14 @@ export class SnackbarProvider
               this.handleCloseSnackbar(first.key, event, reason)
             }
             TransitionProps={{
-              onExited: () => this.handleSnackbarExited(first.key),
+              onExited: () => this.handleSnackbarExited(firstKey!),
             }}
             action={
               <IconButton
                 size="small"
                 aria-label="close"
                 color="inherit"
-                onClick={() => this.close(first.key)}
+                onClick={() => this.close(firstKey!)}
               >
                 <CloseIcon fontSize="small" />
               </IconButton>

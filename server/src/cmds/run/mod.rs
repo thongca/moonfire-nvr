@@ -356,7 +356,11 @@ async fn inner(
             trust_forward_hdrs: bind.trust_forward_headers,
             time_zone_name: time_zone_name.to_owned(),
             privileged_unix_uid: bind.own_uid_is_privileged.then_some(own_euid),
-            streamer_tx: if read_only { None } else { Some(streamer_tx.clone()) },
+            streamer_tx: if read_only {
+                None
+            } else {
+                Some(streamer_tx.clone())
+            },
         })?);
         let mut listener = make_listener(&bind.address, &mut preopened)?;
         let addr = bind.address.clone();

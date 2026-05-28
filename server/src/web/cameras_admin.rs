@@ -53,10 +53,9 @@ impl Service {
                             mode: locked.config.mode.clone(),
                             rtsp_url: locked.config.url.as_ref().map(|u| u.to_string()),
                             rtsp_transport: locked.config.rtsp_transport.clone(),
-                            sample_file_dir_id: locked
-                                .sample_file_dir
-                                .as_ref()
-                                .map(|d| d.id),
+                            sample_file_dir_id: locked.sample_file_dir.as_ref().map(|d| d.id),
+                            retain_bytes: locked.config.retain_bytes,
+                            flush_if_sec: locked.config.flush_if_sec,
                         });
                     }
                 }
@@ -214,7 +213,10 @@ impl Service {
         type_: StreamType,
     ) -> ResponseResult {
         if *req.method() != Method::PUT {
-            return Ok(plain_response(StatusCode::METHOD_NOT_ALLOWED, "PUT expected"));
+            return Ok(plain_response(
+                StatusCode::METHOD_NOT_ALLOWED,
+                "PUT expected",
+            ));
         }
         if !caller.permissions.admin_users {
             bail!(Unauthenticated, msg("must have admin_users permission"));
@@ -222,6 +224,9 @@ impl Service {
         let (_, b) = into_json_body(req).await?;
         let r: json::PutCameraStreamRequest = parse_json_body(&b)?;
         require_csrf_if_session(&caller, r.csrf.as_deref())?;
+        if matches!(r.retain_bytes, Some(v) if v < 0) {
+            bail!(InvalidArgument, msg("retainBytes must not be negative"));
+        }
         // Use a block so the lock is fully out of scope before any .await.
         let cmd_opt: Option<StreamerCommand> = {
             let mut l = self.db.lock();
@@ -230,6 +235,12 @@ impl Service {
             change.streams[si].config.mode = r.mode.clone();
             change.streams[si].config.url = r.rtsp_url;
             change.streams[si].config.rtsp_transport = r.rtsp_transport;
+            if let Some(retain_bytes) = r.retain_bytes {
+                change.streams[si].config.retain_bytes = retain_bytes;
+            }
+            if let Some(flush_if_sec) = r.flush_if_sec {
+                change.streams[si].config.flush_if_sec = flush_if_sec;
+            }
             if let Some(dir_id) = r.sample_file_dir_id {
                 if l.sample_file_dirs_by_id().get(&dir_id).is_none() {
                     bail!(NotFound, msg("no such sample file dir {dir_id}"));
