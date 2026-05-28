@@ -25,6 +25,7 @@ pub(super) enum Path {
     Users,                                            // "/api/users"
     User(i32),                                        // "/api/users/<id>"
     CamerasAdmin,                                     // GET/POST "/api/cameras"
+    SampleFileDirsAdmin,                              // GET/POST "/api/sample-file-dirs"
     CameraAdmin(i32),                                 // PUT/DELETE "/api/cameras/<id>"
     CameraStreamAdmin(i32, db::StreamType),           // PUT "/api/cameras/<id>/streams/<type>"
     NotFound,
@@ -58,6 +59,8 @@ impl Path {
                 return Path::InitSegment(id, debug);
             }
             Path::NotFound
+        } else if path == "sample-file-dirs" {
+            return Path::SampleFileDirsAdmin;
         } else if path == "cameras" {
             return Path::CamerasAdmin;
         } else if let Some(path) = path.strip_prefix("cameras/") {
@@ -197,6 +200,11 @@ mod tests {
     fn camera_admin_paths() {
         use super::Path;
         use db::StreamType;
+        assert_eq!(
+            Path::decode("/api/sample-file-dirs"),
+            Path::SampleFileDirsAdmin
+        );
+        assert_eq!(Path::decode("/api/sample-file-dirs/"), Path::NotFound);
         assert_eq!(Path::decode("/api/cameras"), Path::CamerasAdmin);
         assert_eq!(Path::decode("/api/cameras/"), Path::NotFound);
         assert_eq!(Path::decode("/api/cameras/5"), Path::CameraAdmin(5));

@@ -741,3 +741,33 @@ pub struct StreamAdminEntry {
 pub struct GetCamerasAdminResponse {
     pub cameras: Vec<CameraAdminEntry>,
 }
+
+/// One sample file directory entry in `GET /api/sample-file-dirs`.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SampleFileDirEntry {
+    pub id: i32,
+    pub path: String,
+}
+
+/// Response body for `GET /api/sample-file-dirs`.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetSampleFileDirsResponse {
+    pub sample_file_dirs: Vec<SampleFileDirEntry>,
+}
+
+/// Request body for `POST /api/sample-file-dirs`.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostSampleFileDirRequest {
+    pub csrf: Option<String>,
+    pub path: std::path::PathBuf,
+}
+
+/// Response body for `POST /api/sample-file-dirs`.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostSampleFileDirResponse {
+    pub id: i32,
+}
