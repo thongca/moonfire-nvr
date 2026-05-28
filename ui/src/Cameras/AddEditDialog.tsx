@@ -151,10 +151,16 @@ function StreamSummaryCard({
               color={stream.mode === "record" ? "primary" : "default"}
             />
           </Stack>
-          <Typography sx={{ fontSize: 12, lineHeight: "16px" }} color="text.secondary">
+          <Typography
+            sx={{ fontSize: 12, lineHeight: "16px" }}
+            color="text.secondary"
+          >
             {hasRtsp ? "RTSP configured" : "No RTSP URL"}
           </Typography>
-          <Typography sx={{ fontSize: 11, lineHeight: "14px" }} color="text.secondary">
+          <Typography
+            sx={{ fontSize: 11, lineHeight: "14px" }}
+            color="text.secondary"
+          >
             {transportLabel(stream.rtspTransport)}
           </Typography>
         </Stack>
@@ -327,7 +333,10 @@ export default function AddEditDialog({
         >
           {isEdit ? `Edit Camera — ${camera!.shortName}` : "Add Camera"}
         </Typography>
-        <Typography sx={{ fontSize: 12, lineHeight: "18px" }} color="text.secondary">
+        <Typography
+          sx={{ fontSize: 12, lineHeight: "18px" }}
+          color="text.secondary"
+        >
           Configure identity, connection, and stream routing
         </Typography>
       </DialogTitle>
@@ -438,78 +447,94 @@ export default function AddEditDialog({
                 />
               ))}
             </Tabs>
-            {STREAM_TYPES.map((t) => (
-              <Box
-                key={t}
-                id={`stream-panel-${t}`}
-                role="tabpanel"
-                aria-labelledby={`stream-tab-${t}`}
-                hidden={activeStream !== t}
-                sx={{ pt: 2, display: activeStream === t ? "block" : "none" }}
-              >
-                <Grid container spacing={1.5}>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <FormControl size="small" fullWidth>
-                      <InputLabel>Mode</InputLabel>
-                      <Select
-                        value={streams[t].mode}
-                        label="Mode"
-                        onChange={(e) =>
-                          updateStream(t, "mode", e.target.value)
-                        }
-                      >
-                        <MenuItem value="">Off</MenuItem>
-                        <MenuItem value="record">Record</MenuItem>
-                      </Select>
-                    </FormControl>
-                    <Typography sx={{ fontSize: 11, lineHeight: "16px" }} color="text.secondary">
-                      Record enables this stream for capture.
-                    </Typography>
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 8 }}>
-                    <TextField
-                      label="RTSP URL"
-                      value={streams[t].rtspUrl}
+            <Box
+              key={activeStream}
+              id={`stream-panel-${activeStream}`}
+              role="tabpanel"
+              aria-labelledby={`stream-tab-${activeStream}`}
+              sx={{ pt: 2 }}
+            >
+              <Grid container spacing={1.5}>
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <FormControl size="small" fullWidth>
+                    <InputLabel id={`stream-mode-label-${activeStream}`}>
+                      Mode
+                    </InputLabel>
+                    <Select
+                      labelId={`stream-mode-label-${activeStream}`}
+                      id={`stream-mode-${activeStream}`}
+                      value={streams[activeStream].mode}
+                      label="Mode"
                       onChange={(e) =>
-                        updateStream(t, "rtspUrl", e.target.value)
+                        updateStream(activeStream, "mode", e.target.value)
                       }
-                      placeholder="rtsp://192.168.1.10/stream1"
-                      size="small"
-                      fullWidth
-                    />
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <FormControl size="small" fullWidth>
-                      <InputLabel>Transport</InputLabel>
-                      <Select
-                        value={streams[t].rtspTransport}
-                        label="Transport"
-                        onChange={(e) =>
-                          updateStream(t, "rtspTransport", e.target.value)
-                        }
-                      >
-                        <MenuItem value="">Auto</MenuItem>
-                        <MenuItem value="tcp">TCP</MenuItem>
-                        <MenuItem value="udp">UDP</MenuItem>
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid size={{ xs: 12, md: 4 }}>
-                    <TextField
-                      label="Sample File Dir ID"
-                      value={streams[t].sampleFileDirId}
-                      onChange={(e) =>
-                        updateStream(t, "sampleFileDirId", e.target.value)
-                      }
-                      helperText="Blank uses the server default."
-                      size="small"
-                      type="number"
-                      fullWidth
-                    />
-                  </Grid>
+                    >
+                      <MenuItem value="">Off</MenuItem>
+                      <MenuItem value="record">Record</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <Typography
+                    sx={{ fontSize: 11, lineHeight: "16px" }}
+                    color="text.secondary"
+                  >
+                    Record enables this stream for capture.
+                  </Typography>
                 </Grid>
-              </Box>
-            ))}
+                <Grid size={{ xs: 12, md: 8 }}>
+                  <TextField
+                    label="RTSP URL"
+                    value={streams[activeStream].rtspUrl}
+                    onChange={(e) =>
+                      updateStream(activeStream, "rtspUrl", e.target.value)
+                    }
+                    placeholder="rtsp://192.168.1.10/stream1"
+                    size="small"
+                    fullWidth
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <FormControl size="small" fullWidth>
+                    <InputLabel id={`stream-transport-label-${activeStream}`}>
+                      Transport
+                    </InputLabel>
+                    <Select
+                      labelId={`stream-transport-label-${activeStream}`}
+                      id={`stream-transport-${activeStream}`}
+                      value={streams[activeStream].rtspTransport}
+                      label="Transport"
+                      onChange={(e) =>
+                        updateStream(
+                          activeStream,
+                          "rtspTransport",
+                          e.target.value,
+                        )
+                      }
+                    >
+                      <MenuItem value="">Auto</MenuItem>
+                      <MenuItem value="tcp">TCP</MenuItem>
+                      <MenuItem value="udp">UDP</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <TextField
+                    label="Sample File Dir ID"
+                    value={streams[activeStream].sampleFileDirId}
+                    onChange={(e) =>
+                      updateStream(
+                        activeStream,
+                        "sampleFileDirId",
+                        e.target.value,
+                      )
+                    }
+                    helperText="Blank uses the server default."
+                    size="small"
+                    type="number"
+                    fullWidth
+                  />
+                </Grid>
+              </Grid>
+            </Box>
           </Box>
         </DialogSection>
       </DialogContent>
