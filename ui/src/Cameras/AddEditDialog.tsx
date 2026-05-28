@@ -63,7 +63,17 @@ function DialogSection({
 }) {
   return (
     <Stack spacing={1.5}>
-      <Typography variant="overline" component="h3" color="text.secondary">
+      <Typography
+        component="h3"
+        color="text.secondary"
+        sx={{
+          fontSize: 10,
+          fontWeight: 700,
+          letterSpacing: "0.08em",
+          lineHeight: "14px",
+          textTransform: "uppercase",
+        }}
+      >
         {title}
       </Typography>
       {children}
@@ -123,11 +133,14 @@ function StreamSummaryCard({
             alignItems="center"
           >
             <Typography
-              variant="overline"
               sx={{
                 color: selected
                   ? shellTokens.primary.fireOrange
                   : "text.secondary",
+                fontSize: 10,
+                fontWeight: 700,
+                letterSpacing: "0.08em",
+                lineHeight: "14px",
               }}
             >
               {streamLabel(type_)}
@@ -138,10 +151,10 @@ function StreamSummaryCard({
               color={stream.mode === "record" ? "primary" : "default"}
             />
           </Stack>
-          <Typography variant="body2" color="text.secondary">
+          <Typography sx={{ fontSize: 12, lineHeight: "16px" }} color="text.secondary">
             {hasRtsp ? "RTSP configured" : "No RTSP URL"}
           </Typography>
-          <Typography variant="caption" color="text.secondary">
+          <Typography sx={{ fontSize: 11, lineHeight: "14px" }} color="text.secondary">
             {transportLabel(stream.rtspTransport)}
           </Typography>
         </Stack>
@@ -308,10 +321,13 @@ export default function AddEditDialog({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle sx={{ pb: 1 }}>
-        <Typography variant="h5" component="div" sx={{ fontWeight: 700 }}>
+        <Typography
+          component="div"
+          sx={{ fontSize: 18, fontWeight: 700, lineHeight: "24px" }}
+        >
           {isEdit ? `Edit Camera — ${camera!.shortName}` : "Add Camera"}
         </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography sx={{ fontSize: 12, lineHeight: "18px" }} color="text.secondary">
           Configure identity, connection, and stream routing
         </Typography>
       </DialogTitle>
@@ -402,8 +418,14 @@ export default function AddEditDialog({
               variant="fullWidth"
               sx={{
                 borderBottom: `1px solid ${shellTokens.border.subtle}`,
-                minHeight: 40,
-                "& .MuiTab-root": { minHeight: 40 },
+                minHeight: 36,
+                "& .MuiTab-root": {
+                  fontSize: 12,
+                  fontWeight: 700,
+                  letterSpacing: "0.08em",
+                  minHeight: 36,
+                  py: 0.75,
+                },
               }}
             >
               {STREAM_TYPES.map((t) => (
@@ -440,7 +462,7 @@ export default function AddEditDialog({
                         <MenuItem value="record">Record</MenuItem>
                       </Select>
                     </FormControl>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography sx={{ fontSize: 11, lineHeight: "16px" }} color="text.secondary">
                       Record enables this stream for capture.
                     </Typography>
                   </Grid>

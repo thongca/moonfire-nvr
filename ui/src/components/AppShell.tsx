@@ -105,28 +105,35 @@ export default function AppShell({
             flexDirection: "column",
           }}
         >
-          <Box sx={{ p: 3 }}>
+          <Box sx={{ p: 2.5 }}>
             <Stack direction="row" spacing={1.5} alignItems="center">
               <Box
                 sx={{
-                  width: 44,
-                  height: 44,
+                  width: 36,
+                  height: 36,
                   borderRadius: 1,
                   bgcolor: shellTokens.primary.fireOrange,
                 }}
               />
               <Box>
-                <Typography sx={{ fontWeight: 700, color: shellTokens.text.primary }}>
+                <Typography
+                  sx={{
+                    color: shellTokens.text.primary,
+                    fontSize: 14,
+                    fontWeight: 700,
+                    lineHeight: "18px",
+                  }}
+                >
                   Moonfire NVR
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
+                <Typography sx={{ fontSize: 11, lineHeight: "14px" }} color="text.secondary">
                   Active
                 </Typography>
               </Box>
             </Stack>
           </Box>
 
-          <List sx={{ px: 2 }}>
+          <List sx={{ px: 1.5, py: 0.5 }}>
             {navItems.map((item) => {
               const active =
                 item.to === "/"
@@ -141,7 +148,9 @@ export default function AppShell({
                   aria-current={active ? "page" : undefined}
                   sx={{
                     borderRadius: 1,
-                    mb: 0.75,
+                    mb: 0.5,
+                    minHeight: 40,
+                    py: 0.75,
                     color: active ? "#ffffff" : shellTokens.text.primary,
                     bgcolor: active ? shellTokens.primary.fireOrange : "transparent",
                     borderLeft: active
@@ -161,28 +170,41 @@ export default function AppShell({
                     },
                   }}
                 >
-                  <ListItemIcon sx={{ color: "inherit", minWidth: 40 }}>
+                  <ListItemIcon
+                    sx={{
+                      color: "inherit",
+                      minWidth: 34,
+                      "& .MuiSvgIcon-root": { fontSize: 20 },
+                    }}
+                  >
                     {item.icon}
                   </ListItemIcon>
-                  <ListItemText primary={item.label} />
+                  <ListItemText
+                    primary={item.label}
+                    primaryTypographyProps={{
+                      fontSize: 13,
+                      fontWeight: active ? 700 : 500,
+                      lineHeight: "18px",
+                    }}
+                  />
                 </ListItemButton>
               );
             })}
           </List>
 
-          <Box sx={{ mt: "auto", p: 3, borderTop: `1px solid ${shellTokens.border.subtle}` }}>
+          <Box sx={{ mt: "auto", p: 2.5, borderTop: `1px solid ${shellTokens.border.subtle}` }}>
             <Button
               fullWidth
               variant="contained"
-              sx={{ mb: 3, bgcolor: shellTokens.primary.fireOrange }}
+              sx={{ mb: 2, bgcolor: shellTokens.primary.fireOrange, fontSize: 12 }}
             >
               Export Clip
             </Button>
             <Stack spacing={1}>
-              <Button startIcon={<HelpOutlineOutlined />} sx={{ justifyContent: "flex-start", color: shellTokens.text.primary }}>
+              <Button startIcon={<HelpOutlineOutlined />} sx={{ justifyContent: "flex-start", color: shellTokens.text.primary, fontSize: 12 }}>
                 Support
               </Button>
-              <Button startIcon={loggedIn ? <LogoutOutlined /> : <LoginOutlined />} onClick={loggedIn ? onLogout : onRequestLogin} sx={{ justifyContent: "flex-start", color: shellTokens.text.primary }}>
+              <Button startIcon={loggedIn ? <LogoutOutlined /> : <LoginOutlined />} onClick={loggedIn ? onLogout : onRequestLogin} sx={{ justifyContent: "flex-start", color: shellTokens.text.primary, fontSize: 12 }}>
                 {loggedIn ? "Log Out" : "Log In"}
               </Button>
             </Stack>
