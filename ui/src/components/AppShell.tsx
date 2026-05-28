@@ -93,19 +93,23 @@ export default function AppShell({
         color: shellTokens.text.primary,
       }}
     >
-      <Stack direction="row" sx={{ minHeight: "100vh" }}>
+      <Stack
+        direction={{ xs: "column", md: "row" }}
+        sx={{ minHeight: "100vh" }}
+      >
         <Paper
           square
           sx={{
-            width: 280,
+            width: { xs: "100%", md: 280 },
             bgcolor: shellTokens.surface.panel,
-            borderRight: "1px solid",
+            borderRight: { xs: 0, md: "1px solid" },
+            borderBottom: { xs: "1px solid", md: 0 },
             borderColor: shellTokens.border.subtle,
             display: "flex",
             flexDirection: "column",
           }}
         >
-          <Box sx={{ p: 2.5 }}>
+          <Box sx={{ p: { xs: 1.5, md: 2.5 } }}>
             <Stack direction="row" spacing={1.5} alignItems="center">
               <Box
                 sx={{
@@ -126,14 +130,25 @@ export default function AppShell({
                 >
                   Moonfire NVR
                 </Typography>
-                <Typography sx={{ fontSize: 11, lineHeight: "14px" }} color="text.secondary">
+                <Typography
+                  sx={{ fontSize: 11, lineHeight: "14px" }}
+                  color="text.secondary"
+                >
                   Active
                 </Typography>
               </Box>
             </Stack>
           </Box>
 
-          <List sx={{ px: 1.5, py: 0.5 }}>
+          <List
+            sx={{
+              display: { xs: "flex", md: "block" },
+              gap: { xs: 0.5, md: 0 },
+              overflowX: { xs: "auto", md: "visible" },
+              px: 1.5,
+              py: 0.5,
+            }}
+          >
             {navItems.map((item) => {
               const active =
                 item.to === "/"
@@ -151,8 +166,11 @@ export default function AppShell({
                     mb: 0.5,
                     minHeight: 40,
                     py: 0.75,
+                    flexShrink: { xs: 0, md: 1 },
                     color: active ? "#ffffff" : shellTokens.text.primary,
-                    bgcolor: active ? shellTokens.primary.fireOrange : "transparent",
+                    bgcolor: active
+                      ? shellTokens.primary.fireOrange
+                      : "transparent",
                     borderLeft: active
                       ? `4px solid ${shellTokens.text.primary}`
                       : "4px solid transparent",
@@ -192,34 +210,68 @@ export default function AppShell({
             })}
           </List>
 
-          <Box sx={{ mt: "auto", p: 2.5, borderTop: `1px solid ${shellTokens.border.subtle}` }}>
+          <Box
+            sx={{
+              display: { xs: "none", md: "block" },
+              mt: "auto",
+              p: 2.5,
+              borderTop: `1px solid ${shellTokens.border.subtle}`,
+            }}
+          >
             <Button
               fullWidth
               variant="contained"
-              sx={{ mb: 2, bgcolor: shellTokens.primary.fireOrange, fontSize: 12 }}
+              sx={{
+                mb: 2,
+                bgcolor: shellTokens.primary.fireOrange,
+                fontSize: 12,
+              }}
             >
               Export Clip
             </Button>
             <Stack spacing={1}>
-              <Button startIcon={<HelpOutlineOutlined />} sx={{ justifyContent: "flex-start", color: shellTokens.text.primary, fontSize: 12 }}>
+              <Button
+                startIcon={<HelpOutlineOutlined />}
+                sx={{
+                  justifyContent: "flex-start",
+                  color: shellTokens.text.primary,
+                  fontSize: 12,
+                }}
+              >
                 Support
               </Button>
-              <Button startIcon={loggedIn ? <LogoutOutlined /> : <LoginOutlined />} onClick={loggedIn ? onLogout : onRequestLogin} sx={{ justifyContent: "flex-start", color: shellTokens.text.primary, fontSize: 12 }}>
+              <Button
+                startIcon={loggedIn ? <LogoutOutlined /> : <LoginOutlined />}
+                onClick={loggedIn ? onLogout : onRequestLogin}
+                sx={{
+                  justifyContent: "flex-start",
+                  color: shellTokens.text.primary,
+                  fontSize: 12,
+                }}
+              >
                 {loggedIn ? "Log Out" : "Log In"}
               </Button>
             </Stack>
           </Box>
         </Paper>
 
-        <Box sx={{ flexGrow: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <Box
+          sx={{
+            flexGrow: 1,
+            display: "flex",
+            flexDirection: "column",
+            minWidth: 0,
+          }}
+        >
           <Paper
             square
             sx={{
-              height: 80,
-              px: 3,
+              minHeight: { xs: 56, md: 80 },
+              px: { xs: 1.5, md: 3 },
+              py: { xs: 1, md: 0 },
               display: "flex",
               alignItems: "center",
-              gap: 2,
+              gap: { xs: 1, md: 2 },
               bgcolor: shellTokens.surface.raised,
               borderBottom: "1px solid",
               borderColor: shellTokens.border.subtle,
@@ -231,7 +283,9 @@ export default function AppShell({
                 py: 0.75,
                 display: "flex",
                 alignItems: "center",
-                width: 320,
+                flex: { xs: "1 1 auto", md: "0 0 320px" },
+                minWidth: 0,
+                maxWidth: { xs: "100%", md: 320 },
                 bgcolor: shellTokens.surface.panel,
                 border: `1px solid ${shellTokens.border.subtle}`,
               }}
@@ -243,7 +297,9 @@ export default function AppShell({
                 sx={{ ml: 1, flexGrow: 1 }}
               />
             </Paper>
-            <Box sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 1 }}>
+            <Box
+              sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 1 }}
+            >
               {activityMenuPart}
               {loggedIn ? (
                 <>
@@ -263,7 +319,9 @@ export default function AppShell({
                     anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
                     transformOrigin={{ vertical: "top", horizontal: "right" }}
                   >
-                    <MenuItem onClick={handleChangePassword}>Change password</MenuItem>
+                    <MenuItem onClick={handleChangePassword}>
+                      Change password
+                    </MenuItem>
                     <MenuItem onClick={handleLogout}>Logout</MenuItem>
                   </Menu>
                 </>
@@ -280,7 +338,9 @@ export default function AppShell({
               )}
             </Box>
           </Paper>
-          <Box sx={{ p: 4, flexGrow: 1, minWidth: 0 }}>{children}</Box>
+          <Box sx={{ p: { xs: 2, md: 4 }, flexGrow: 1, minWidth: 0 }}>
+            {children}
+          </Box>
         </Box>
       </Stack>
     </Box>
