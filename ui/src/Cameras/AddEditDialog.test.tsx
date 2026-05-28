@@ -91,6 +91,80 @@ test("updates the active stream summary from form edits", async () => {
   expect(within(mainSummary).getByText("TCP")).toBeInTheDocument();
 });
 
+test("shows storage directory options and warns when recording has none", async () => {
+  const user = userEvent.setup();
+  mockSampleFileDirs([
+    { id: 7, path: "/var/lib/moonfire-nvr/sample" },
+    { id: 8, path: "/media/nvr/sample" },
+  ]);
+  renderAddDialog();
+
+  await screen.findByText("Storage Directory");
+  await user.click(screen.getByLabelText("Mode"));
+  await user.click(screen.getByRole("option", { name: "Record" }));
+
+  expect(
+    screen.getByText(
+      "Recording requires a storage directory. Create or select one before saving.",
+    ),
+  ).toBeInTheDocument();
+  expect(
+    within(screen.getByTestId("stream-summary-main")).getByText(
+      "Storage dir missing",
+    ),
+  ).toBeInTheDocument();
+
+  await user.click(screen.getByLabelText("Storage Directory"));
+  expect(
+    screen.getByRole("option", {
+      name: "Dir 7 — /var/lib/moonfire-nvr/sample",
+    }),
+  ).toBeInTheDocument();
+  await user.click(
+    screen.getByRole("option", { name: "Dir 8 — /media/nvr/sample" }),
+  );
+
+  expect(
+    screen.queryByText(
+      "Recording requires a storage directory. Create or select one before saving.",
+    ),
+  ).not.toBeInTheDocument();
+  expect(within(screen.getByTestId("stream-summary-main")).getByText("Dir 8"))
+    .toBeInTheDocument();
+});
+
+test("creates a storage directory and selects it for the active stream", async () => {
+  const user = userEvent.setup();
+  let createBody: any = null;
+  mockSampleFileDirs([]);
+  server.use(
+    http.post("/api/sample-file-dirs", async ({ request }) => {
+      createBody = await request.json();
+      return HttpResponse.json({ id: 9 });
+    }),
+    http.get("/api/sample-file-dirs", () =>
+      HttpResponse.json({
+        sampleFileDirs: [{ id: 9, path: "/tmp/moonfire-sample" }],
+      }),
+    ),
+  );
+
+  renderAddDialog();
+
+  await user.click(await screen.findByRole("button", { name: "Create directory" }));
+  await user.type(screen.getByLabelText("Directory path"), "/tmp/moonfire-sample");
+  await user.click(screen.getByRole("button", { name: "Create" }));
+
+  await screen.findByText("Storage directory Dir 9 created");
+  expect(createBody).toMatchObject({
+    csrf: "csrf-token",
+    path: "/tmp/moonfire-sample",
+  });
+  expect(screen.getByLabelText("Storage Directory")).toHaveTextContent("Dir 9");
+  expect(within(screen.getByTestId("stream-summary-main")).getByText("Dir 9"))
+    .toBeInTheDocument();
+});
+
 test("creates camera then saves configured main stream", async () => {
   const user = userEvent.setup();
   let createBody: any = null;
@@ -130,6 +204,10 @@ test("creates camera then saves configured main stream", async () => {
   await user.click(screen.getAllByRole("combobox")[0]);
   await user.click(screen.getByRole("option", { name: "Record" }));
   await user.type(screen.getAllByLabelText(/RTSP URL/)[0], "rtsp://camera/main");
+  await user.click(screen.getByLabelText("Storage Directory"));
+  await user.click(
+    screen.getByRole("option", { name: "Dir 7 — /var/lib/moonfire-nvr/sample" }),
+  );
   await user.click(screen.getByRole("button", { name: "Save Changes" }));
 
   await waitFor(() => expect(streamBody).not.toBeNull());
@@ -142,5 +220,6 @@ test("creates camera then saves configured main stream", async () => {
     csrf: "csrf-token",
     mode: "record",
     rtspUrl: "rtsp://camera/main",
+    sampleFileDirId: 7,
   });
 });
