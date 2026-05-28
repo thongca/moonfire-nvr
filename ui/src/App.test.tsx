@@ -44,6 +44,11 @@ test("operator can navigate dashboard and create a camera with recording stream"
       }),
     ),
     http.get("/api/cameras", () => HttpResponse.json({ cameras: [] })),
+    http.get("/api/sample-file-dirs", () =>
+      HttpResponse.json({
+        sampleFileDirs: [{ id: 7, path: "/var/lib/moonfire-nvr/sample" }],
+      }),
+    ),
     http.post("/api/cameras", async ({ request }) => {
       createdCamera = await request.json();
       return HttpResponse.json({ cameraId: 99 });
@@ -52,8 +57,14 @@ test("operator can navigate dashboard and create a camera with recording stream"
       createdStream = await request.json();
       return new HttpResponse(null, { status: 204 });
     }),
-    http.put("/api/cameras/99/streams/sub", () => new HttpResponse(null, { status: 204 })),
-    http.put("/api/cameras/99/streams/ext", () => new HttpResponse(null, { status: 204 })),
+    http.put(
+      "/api/cameras/99/streams/sub",
+      () => new HttpResponse(null, { status: 204 }),
+    ),
+    http.put(
+      "/api/cameras/99/streams/ext",
+      () => new HttpResponse(null, { status: 204 }),
+    ),
   );
 
   renderWithCtx(<App />, { initialEntries: ["/cameras"] });
@@ -63,7 +74,16 @@ test("operator can navigate dashboard and create a camera with recording stream"
   await user.type(screen.getByLabelText(/Description/), "Entrance camera");
   await user.click(screen.getAllByRole("combobox")[0]);
   await user.click(screen.getByRole("option", { name: "Record" }));
-  await user.type(screen.getAllByLabelText(/RTSP URL/)[0], "rtsp://camera/main");
+  await user.type(
+    screen.getAllByLabelText(/RTSP URL/)[0],
+    "rtsp://camera/main",
+  );
+  await user.click(screen.getByLabelText("Storage Directory"));
+  await user.click(
+    screen.getByRole("option", {
+      name: "Dir 7 — /var/lib/moonfire-nvr/sample",
+    }),
+  );
   await user.click(screen.getByRole("button", { name: "Save Changes" }));
 
   await screen.findByRole("heading", { name: "Camera Management" });
@@ -76,6 +96,7 @@ test("operator can navigate dashboard and create a camera with recording stream"
     csrf: "csrf-token",
     mode: "record",
     rtspUrl: "rtsp://camera/main",
+    sampleFileDirId: 7,
   });
 });
 
@@ -93,10 +114,9 @@ test("dashboard shell renders at root", async () => {
     ),
   );
   renderWithCtx(<App />, { initialEntries: ["/"] });
-  expect(await screen.findByRole("link", { name: "Dashboard" })).toHaveAttribute(
-    "href",
-    "/",
-  );
+  expect(
+    await screen.findByRole("link", { name: "Dashboard" }),
+  ).toHaveAttribute("href", "/");
 });
 
 test("shared dark theme uses stitch token values", () => {
