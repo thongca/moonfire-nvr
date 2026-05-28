@@ -5,6 +5,7 @@
 pub mod accept;
 mod live;
 mod path;
+mod sample_file_dirs;
 mod session;
 mod cameras_admin;
 mod signals;
@@ -282,6 +283,10 @@ impl Service {
             Path::CamerasAdmin => (
                 CacheControl::PrivateDynamic,
                 Arc::clone(&self).cameras_admin(req, caller).await?,
+            ),
+            Path::SampleFileDirsAdmin => (
+                CacheControl::PrivateDynamic,
+                Arc::clone(&self).sample_file_dirs(req, caller).await?,
             ),
             Path::CameraAdmin(id) => (
                 CacheControl::PrivateDynamic,
