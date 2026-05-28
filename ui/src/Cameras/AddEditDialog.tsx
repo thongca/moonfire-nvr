@@ -2,9 +2,10 @@
 // Copyright (C) 2021 The Moonfire NVR Authors; see AUTHORS and LICENSE.txt.
 // SPDX-License-Identifier: GPL-v3.0-or-later WITH GPL-3.0-linking-exception.
 
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import * as api from "../api";
 import { useSnackbars } from "../snackbars";
+import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
@@ -84,15 +85,25 @@ function DialogSection({
 function StreamSummaryCard({
   type_,
   stream,
+  sampleFileDirs,
   selected,
   onSelect,
 }: {
   type_: StreamTypeStr;
   stream: StreamForm;
+  sampleFileDirs: api.SampleFileDirEntry[];
   selected: boolean;
   onSelect: () => void;
 }) {
   const hasRtsp = stream.rtspUrl.trim().length > 0;
+  const dir = stream.sampleFileDirId
+    ? sampleFileDirs.find((d) => d.id.toString() === stream.sampleFileDirId)
+    : undefined;
+  const storageLabel = stream.sampleFileDirId
+    ? `Dir ${stream.sampleFileDirId}`
+    : stream.mode === "record"
+      ? "Storage dir missing"
+      : "No storage directory";
 
   return (
     <ButtonBase
@@ -163,6 +174,16 @@ function StreamSummaryCard({
           >
             {transportLabel(stream.rtspTransport)}
           </Typography>
+          <Typography
+            sx={{ fontSize: 11, lineHeight: "14px" }}
+            color={
+              stream.mode === "record" && !stream.sampleFileDirId
+                ? "warning.main"
+                : "text.secondary"
+            }
+          >
+            {dir ? `Dir ${dir.id}` : storageLabel}
+          </Typography>
         </Stack>
       </Paper>
     </ButtonBase>
@@ -198,9 +219,33 @@ export default function AddEditDialog({
     ext: defaultStreamForm(),
   });
   const [saving, setSaving] = useState(false);
+  const [sampleFileDirs, setSampleFileDirs] = useState<
+    api.SampleFileDirEntry[]
+  >([]);
+  const [loadingSampleFileDirs, setLoadingSampleFileDirs] = useState(false);
+  const [createDirOpen, setCreateDirOpen] = useState(false);
+  const [newDirPath, setNewDirPath] = useState("");
+  const [creatingDir, setCreatingDir] = useState(false);
+
+  const fetchSampleFileDirs = useCallback(async () => {
+    setLoadingSampleFileDirs(true);
+    try {
+      const resp = await api.getSampleFileDirs({});
+      if (resp.status === "success") {
+        setSampleFileDirs(resp.response.sampleFileDirs);
+      } else if (resp.status === "error") {
+        snackbars.enqueue({
+          message: "Failed to load storage directories: " + resp.message,
+        });
+      }
+    } finally {
+      setLoadingSampleFileDirs(false);
+    }
+  }, [snackbars]);
 
   useEffect(() => {
     if (!open) return;
+    fetchSampleFileDirs();
     if (camera) {
       setShortName(camera.shortName);
       setDescription(camera.description);
@@ -237,7 +282,7 @@ export default function AddEditDialog({
       });
     }
     setActiveStream("main");
-  }, [open, camera]);
+  }, [open, camera, fetchSampleFileDirs]);
 
   const updateStream = (
     type_: StreamTypeStr,
@@ -275,6 +320,35 @@ export default function AddEditDialog({
       }
     }
     return true;
+  };
+
+  const handleCreateSampleFileDir = async () => {
+    const path = newDirPath.trim();
+    if (!path) {
+      snackbars.enqueue({ message: "Directory path is required" });
+      return;
+    }
+    setCreatingDir(true);
+    try {
+      const resp = await api.createSampleFileDir({ csrf, path }, {});
+      if (resp.status === "success") {
+        const id = resp.response.id;
+        const refreshed = await api.getSampleFileDirs({});
+        if (refreshed.status === "success") {
+          setSampleFileDirs(refreshed.response.sampleFileDirs);
+        }
+        updateStream(activeStream, "sampleFileDirId", id.toString());
+        setCreateDirOpen(false);
+        setNewDirPath("");
+        snackbars.enqueue({ message: `Storage directory Dir ${id} created` });
+      } else if (resp.status === "error") {
+        snackbars.enqueue({
+          message: "Create storage directory failed: " + resp.message,
+        });
+      }
+    } finally {
+      setCreatingDir(false);
+    }
   };
 
   const handleSave = async () => {
@@ -413,6 +487,7 @@ export default function AddEditDialog({
                 <StreamSummaryCard
                   type_={t}
                   stream={streams[t]}
+                  sampleFileDirs={sampleFileDirs}
                   selected={activeStream === t}
                   onSelect={() => setActiveStream(t)}
                 />
@@ -517,22 +592,90 @@ export default function AddEditDialog({
                   </FormControl>
                 </Grid>
                 <Grid size={{ xs: 12, md: 4 }}>
-                  <TextField
-                    label="Sample File Dir ID"
-                    value={streams[activeStream].sampleFileDirId}
-                    onChange={(e) =>
-                      updateStream(
-                        activeStream,
-                        "sampleFileDirId",
-                        e.target.value,
-                      )
-                    }
-                    helperText="Blank uses the server default."
-                    size="small"
-                    type="number"
-                    fullWidth
-                  />
+                  <FormControl size="small" fullWidth>
+                    <InputLabel id={`stream-storage-dir-label-${activeStream}`}>
+                      Storage Directory
+                    </InputLabel>
+                    <Select
+                      labelId={`stream-storage-dir-label-${activeStream}`}
+                      id={`stream-storage-dir-${activeStream}`}
+                      value={streams[activeStream].sampleFileDirId}
+                      label="Storage Directory"
+                      disabled={loadingSampleFileDirs}
+                      onChange={(e) =>
+                        updateStream(
+                          activeStream,
+                          "sampleFileDirId",
+                          e.target.value,
+                        )
+                      }
+                    >
+                      <MenuItem value="">No storage directory</MenuItem>
+                      {sampleFileDirs.map((dir) => (
+                        <MenuItem key={dir.id} value={dir.id.toString()}>
+                          {`Dir ${dir.id} — ${dir.path}`}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <Typography
+                    sx={{ fontSize: 11, lineHeight: "16px", mt: 0.5 }}
+                    color="text.secondary"
+                  >
+                    {sampleFileDirs.length === 0
+                      ? "No storage directories configured yet. Create one here or with moonfire-nvr config → Directories and retention."
+                      : "Choose where recordings for this stream are stored."}
+                  </Typography>
+                  {streams[activeStream].mode === "record" &&
+                    !streams[activeStream].sampleFileDirId && (
+                      <Alert severity="warning" sx={{ mt: 1 }}>
+                        Recording requires a storage directory. Create or select
+                        one before saving.
+                      </Alert>
+                    )}
                 </Grid>
+                <Grid size={{ xs: 12, md: 4 }}>
+                  <Button
+                    type="button"
+                    variant="outlined"
+                    onClick={() => setCreateDirOpen((open) => !open)}
+                    fullWidth
+                  >
+                    Create directory
+                  </Button>
+                </Grid>
+                {createDirOpen && (
+                  <Grid size={{ xs: 12 }}>
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                      <TextField
+                        label="Directory path"
+                        value={newDirPath}
+                        onChange={(e) => setNewDirPath(e.target.value)}
+                        placeholder="/var/lib/moonfire-nvr/sample"
+                        size="small"
+                        fullWidth
+                      />
+                      <Button
+                        type="button"
+                        variant="contained"
+                        onClick={handleCreateSampleFileDir}
+                        disabled={creatingDir}
+                      >
+                        Create
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          setCreateDirOpen(false);
+                          setNewDirPath("");
+                        }}
+                        disabled={creatingDir}
+                      >
+                        Cancel
+                      </Button>
+                    </Stack>
+                  </Grid>
+                )}
               </Grid>
             </Box>
           </Box>

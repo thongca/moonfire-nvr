@@ -99,7 +99,7 @@ test("shows storage directory options and warns when recording has none", async 
   ]);
   renderAddDialog();
 
-  await screen.findByText("Storage Directory");
+  await screen.findByLabelText("Storage Directory");
   await user.click(screen.getByLabelText("Mode"));
   await user.click(screen.getByRole("option", { name: "Record" }));
 
