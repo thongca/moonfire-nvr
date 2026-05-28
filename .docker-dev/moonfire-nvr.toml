@@ -1,0 +1,7 @@
+dbDir = "/data/db"
+uiDir = { bundled = true }
+
+[[binds]]
+ipv4 = "0.0.0.0:8080"
+allowUnauthenticatedPermissions = { viewVideo = true, readCameraConfigs = true, updateSignals = true, adminUsers = true }
+trustForwardHeaders = true

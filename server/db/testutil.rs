@@ -172,6 +172,7 @@ impl<C: Clocks + Clone> TestDb<C> {
             assert_eq!(s.writer_state.recording_id, id);
             s.complete.cum_recordings += 1;
             s.writer_state.recording_id = s.complete.cum_recordings;
+            s.flush_ready = s.writer_state.recording_id;
             crate::CompositeId::new(TEST_STREAM_ID, id)
         };
 
@@ -204,6 +205,22 @@ impl<C: Clocks + Clone> TestDb<C> {
             ),
             State::Calling => unreachable!(),
         }
+    }
+
+    pub fn insert_dummy_recording(&self, sample_file_bytes: u32) {
+        use crate::recording::TIME_UNITS_PER_SEC;
+
+        self.insert_recording_from_encoder(
+            db::RecentRecording {
+                sample_file_bytes,
+                media_duration_90k: TIME_UNITS_PER_SEC.try_into().unwrap(),
+                video_samples: 1,
+                video_sync_samples: 1,
+                video_index: vec![0u8; 100],
+                ..Default::default()
+            },
+            |_, _| (),
+        );
     }
 }
 

@@ -228,10 +228,11 @@ impl Service {
             bail!(InvalidArgument, msg("retainBytes must not be negative"));
         }
         // Use a block so the lock is fully out of scope before any .await.
-        let cmd_opt: Option<StreamerCommand> = {
+        let (cmd_opt, retention_limit): (Option<StreamerCommand>, Option<db::lifecycle::NewLimit>) = {
             let mut l = self.db.lock();
             let mut change = l.null_camera_change(camera_id)?;
             let si = type_.index();
+            let old_retain_bytes = change.streams[si].config.retain_bytes;
             change.streams[si].config.mode = r.mode.clone();
             change.streams[si].config.url = r.rtsp_url;
             change.streams[si].config.rtsp_transport = r.rtsp_transport;
@@ -249,18 +250,29 @@ impl Service {
             }
             l.update_camera(camera_id, change)?;
             let mode = r.mode.clone();
-            l.cameras_by_id()
+            let stream_id_opt = l
+                .cameras_by_id()
                 .get(&camera_id)
                 .ok_or_else(|| err!(Internal, msg("camera vanished after stream update")))?
-                .streams[si]
-                .map(|stream_id| {
-                    if mode == db::json::STREAM_MODE_RECORD {
-                        StreamerCommand::RestartStream(stream_id)
-                    } else {
-                        StreamerCommand::StopStream(stream_id)
-                    }
-                })
+                .streams[si];
+            let cmd = stream_id_opt.map(|stream_id| {
+                if mode == db::json::STREAM_MODE_RECORD {
+                    StreamerCommand::RestartStream(stream_id)
+                } else {
+                    StreamerCommand::StopStream(stream_id)
+                }
+            });
+            let retention_limit = match (stream_id_opt, r.retain_bytes) {
+                (Some(stream_id), Some(limit)) if limit < old_retain_bytes => {
+                    Some(db::lifecycle::NewLimit { stream_id, limit })
+                }
+                _ => None,
+            };
+            (cmd, retention_limit)
         }; // l dropped here
+        if let Some(limit) = retention_limit {
+            db::lifecycle::lower_retention(&self.db, &[limit]).await?;
+        }
         if let Some(tx) = self.streamer_tx.as_ref() {
             if let Some(cmd) = cmd_opt {
                 let _ = tx.send(cmd).await;

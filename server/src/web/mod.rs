@@ -1016,6 +1016,64 @@ mod tests {
         assert_eq!(main.flush_if_sec, 120);
     }
 
+    #[tokio::test]
+    async fn camera_stream_admin_applies_lowered_retention_immediately() {
+        testutil::init();
+        let s = Server::new(Some(db::Permissions {
+            admin_users: true,
+            ..Default::default()
+        }))
+        .await;
+        let client = reqwest::Client::new();
+
+        s.db.insert_dummy_recording(64);
+        assert_eq!(
+            s.db.db
+                .lock()
+                .streams_by_id()
+                .get(&testutil::TEST_STREAM_ID)
+                .unwrap()
+                .inner
+                .lock()
+                .committed
+                .sample_file_bytes,
+            64
+        );
+
+        client
+            .put(format!(
+                "{}/api/cameras/{}/streams/main",
+                s.base_url,
+                testutil::TEST_CAMERA_ID
+            ))
+            .json(&serde_json::json!({
+                "mode": "record",
+                "rtspUrl": "rtsp://test-camera/main",
+                "rtspTransport": "tcp",
+                "sampleFileDirId": null,
+                "retainBytes": 1,
+                "flushIfSec": 0
+            }))
+            .send()
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap();
+
+        assert_eq!(
+            s.db.db
+                .lock()
+                .streams_by_id()
+                .get(&testutil::TEST_STREAM_ID)
+                .unwrap()
+                .inner
+                .lock()
+                .committed
+                .sample_file_bytes,
+            0
+        );
+    }
+
     #[test]
     fn test_extract_sid() {
         let mut hdrs = http::HeaderMap::new();
