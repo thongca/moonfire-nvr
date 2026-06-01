@@ -292,6 +292,13 @@ async fn inner(
     // Start a StreamerManager + initial streamers for each stream in record mode.
     let (streamer_tx, streamer_rx) = mpsc::channel::<StreamerCommand>(64);
     let manager_handle: Option<tokio::task::JoinHandle<()>> = if !read_only {
+        let stream_token_cfg = crate::stream_token::StreamTokenConfig::from_env();
+        let token_provider = crate::stream_token::build_provider(&stream_token_cfg);
+        if token_provider.is_some() {
+            info!("Dynamic RTSP stream-token provider configured.");
+        } else {
+            info!("Dynamic RTSP stream-token provider NOT configured; recording will use stored URLs unchanged.");
+        }
         let env: &'static streamer::Environment<'static, clock::RealClocks> = {
             let l = db.lock();
             Box::leak(Box::new(streamer::Environment {
@@ -299,7 +306,7 @@ async fn inner(
                 sample_entries: l.sample_entries().clone(),
                 opener: &crate::stream::OPENER,
                 shutdown_rx: shutdown_rx.clone(),
-                token_provider: None,
+                token_provider: token_provider.clone(),
             }))
         }; // l dropped here
         let mut mgr = StreamerManager::new(db.clone(), env, streamer_rx);
