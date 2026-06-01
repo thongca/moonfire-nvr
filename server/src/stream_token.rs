@@ -269,6 +269,51 @@ impl TokenMinter for HttpTokenMinter {
     }
 }
 
+const DEFAULT_TTL_SEC: u32 = 86_400;
+
+/// Configuration for the dynamic stream-token provider, read from env.
+///
+/// Kept separate from `ExternalMediaMtxConfig` because the two endpoints use
+/// different auth models — this one is client-credentials against `:18090`
+/// `/api/service-auth/token`, while the existing monitoring service does
+/// username/password login against `:18081`.
+#[derive(Clone, Debug, Default)]
+pub struct StreamTokenConfig {
+    pub url: Option<String>,
+    pub client_id: Option<String>,
+    pub client_secret: Option<String>,
+    pub ttl_sec: u32,
+}
+
+impl StreamTokenConfig {
+    pub fn from_env() -> Self {
+        Self {
+            url: env_nonempty("DETAI_SERVICE_TOKEN_URL"),
+            client_id: env_nonempty("DETAI_CLIENT_ID"),
+            client_secret: env_nonempty("DETAI_CLIENT_SECRET"),
+            ttl_sec: env_nonempty("DETAI_TOKEN_TTL_SEC")
+                .and_then(|s| s.parse::<u32>().ok())
+                .unwrap_or(DEFAULT_TTL_SEC),
+        }
+    }
+}
+
+fn env_nonempty(name: &str) -> Option<String> {
+    std::env::var(name).ok().filter(|v| !v.trim().is_empty())
+}
+
+/// Builds a provider when all three required env values are present, otherwise
+/// `None`. The `None` case is the dev/no-broker mode — the streamer keeps using
+/// the URL it already has in the DB.
+pub fn build_provider(cfg: &StreamTokenConfig) -> Option<Arc<dyn TokenProvider>> {
+    let url = cfg.url.clone()?;
+    let client_id = cfg.client_id.clone()?;
+    let client_secret = cfg.client_secret.clone()?;
+    let ttl_sec = if cfg.ttl_sec == 0 { DEFAULT_TTL_SEC } else { cfg.ttl_sec };
+    let minter = HttpTokenMinter::new(url, client_id, client_secret, ttl_sec);
+    Some(Arc::new(DetaiServiceTokenProvider::new(Box::new(minter))))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -503,5 +548,49 @@ mod tests {
         assert!(provider.token_for("p").await.is_err());
         // Cache is empty, so the next call mints again.
         assert_eq!(provider.token_for("p").await.unwrap().as_deref(), Some("j1"));
+    }
+
+    #[test]
+    fn build_provider_returns_some_when_fully_configured() {
+        let cfg = StreamTokenConfig {
+            url: Some("http://10.20.0.254:18090/api/service-auth/token".to_owned()),
+            client_id: Some("moonfire".to_owned()),
+            client_secret: Some("supersecret".to_owned()),
+            ttl_sec: 86_400,
+        };
+        assert!(build_provider(&cfg).is_some());
+    }
+
+    #[test]
+    fn build_provider_returns_none_when_url_missing() {
+        let cfg = StreamTokenConfig {
+            url: None,
+            client_id: Some("moonfire".to_owned()),
+            client_secret: Some("s".to_owned()),
+            ttl_sec: 86_400,
+        };
+        assert!(build_provider(&cfg).is_none());
+    }
+
+    #[test]
+    fn build_provider_returns_none_when_client_id_missing() {
+        let cfg = StreamTokenConfig {
+            url: Some("u".to_owned()),
+            client_id: None,
+            client_secret: Some("s".to_owned()),
+            ttl_sec: 86_400,
+        };
+        assert!(build_provider(&cfg).is_none());
+    }
+
+    #[test]
+    fn build_provider_returns_none_when_client_secret_missing() {
+        let cfg = StreamTokenConfig {
+            url: Some("u".to_owned()),
+            client_id: Some("m".to_owned()),
+            client_secret: None,
+            ttl_sec: 86_400,
+        };
+        assert!(build_provider(&cfg).is_none());
     }
 }
