@@ -213,6 +213,62 @@ pub fn with_token(base: &url::Url, tok: &str) -> url::Url {
     out
 }
 
+/// Real `TokenMinter` that POSTs to the configured detai service-auth endpoint.
+pub struct HttpTokenMinter {
+    client: reqwest::Client,
+    url: String,
+    client_id: String,
+    client_secret: String,
+    ttl_sec: u32,
+}
+
+impl HttpTokenMinter {
+    pub fn new(url: String, client_id: String, client_secret: String, ttl_sec: u32) -> Self {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+            .expect("reqwest client with timeout should build");
+        Self {
+            client,
+            url,
+            client_id,
+            client_secret,
+            ttl_sec,
+        }
+    }
+}
+
+#[async_trait]
+impl TokenMinter for HttpTokenMinter {
+    async fn mint(&self, path: &str) -> Result<MintedToken, Error> {
+        let body = serde_json::json!({
+            "clientId": self.client_id,
+            "clientSecret": self.client_secret,
+            "permissions": [{"action": "read", "path": path}],
+            "expiresInSeconds": self.ttl_sec,
+        });
+        let resp = self
+            .client
+            .post(&self.url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| err!(Unknown, source(e), msg("token POST failed")))?;
+        let status = resp.status();
+        let text = resp
+            .text()
+            .await
+            .map_err(|e| err!(Unknown, source(e), msg("token response body read failed")))?;
+        if !status.is_success() {
+            bail!(Unknown, msg("token service returned HTTP {}", status));
+        }
+        let jwt = parse_token_response(&text)?;
+        let exp_unix = decode_exp(&jwt)
+            .ok_or_else(|| err!(Unknown, msg("minted token has no exp claim")).build())?;
+        Ok(MintedToken { jwt, exp_unix })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
