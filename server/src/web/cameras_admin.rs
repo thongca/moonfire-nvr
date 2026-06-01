@@ -263,7 +263,9 @@ impl Service {
                 }
             });
             let retention_limit = match (stream_id_opt, r.retain_bytes) {
-                (Some(stream_id), Some(limit)) if limit < old_retain_bytes => {
+                (Some(stream_id), Some(limit))
+                    if db::lifecycle::retention_tightened(old_retain_bytes, limit) =>
+                {
                     Some(db::lifecycle::NewLimit { stream_id, limit })
                 }
                 _ => None,

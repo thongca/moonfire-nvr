@@ -255,7 +255,7 @@ impl<C: Clocks + Clone> Flusher<C> {
             streams_needing_delete.push(stream_id);
         }
         for &stream_id in &streams_needing_delete {
-            if let Err(err) = enqueue_delete_recordings(&mut db, stream_id, 0) {
+            if let Err(err) = enqueue_delete_recordings(&mut db, stream_id, 0, true) {
                 error!(err = %err.chain(), stream_id, "enqueue_delete_recordings failed");
             }
         }
@@ -287,13 +287,50 @@ impl<C: Clocks + Clone> Flusher<C> {
     }
 }
 
+/// Returns true if changing a stream's `retain_bytes` from `old` to `new` tightens the
+/// retention constraint, requiring immediate deletion of any newly-excess recordings.
+///
+/// A limit of 0 means "unlimited". So lowering 100 GB → 50 GB tightens (delete excess),
+/// raising 100 GB → 0 (unlimited) loosens (delete nothing), and 0 (unlimited) → 100 GB
+/// tightens (enforce the new finite cap).
+pub fn retention_tightened(old: i64, new: i64) -> bool {
+    let effective = |v: i64| if v == 0 { i64::MAX } else { v };
+    effective(new) < effective(old)
+}
+
+/// Computes how many filesystem bytes must be freed for a stream to satisfy its retention
+/// limit. A positive result means that many bytes of oldest recordings should be deleted;
+/// a non-positive result means nothing needs deleting.
+///
+/// When `retain_zero_is_unlimited` is true (the automatic rotation paths), a `retain_bytes`
+/// of 0 means "retain everything" and this returns 0. When false (the explicit
+/// `lower_retention` / deletion paths), `retain_bytes` is treated as a literal byte budget,
+/// so a 0 budget purges everything. In that path the caller cancels out the configured
+/// `retain_bytes` via `extra_bytes_needed`, deleting down to an explicit target instead.
+fn fs_bytes_to_free(
+    fs_bytes_in_use: i64,
+    extra_bytes_needed: i64,
+    retain_bytes: i64,
+    retain_zero_is_unlimited: bool,
+) -> i64 {
+    if retain_zero_is_unlimited && retain_bytes == 0 {
+        return 0;
+    }
+    fs_bytes_in_use + extra_bytes_needed - retain_bytes
+}
+
 /// Enqueues deletion of recordings to bring a stream's disk usage within bounds.
 /// The next flush will mark the recordings as garbage in the SQLite database, and then they can
 /// be deleted from disk.
+///
+/// `retain_zero_is_unlimited` should be true for automatic rotation (where a configured
+/// `retain_bytes` of 0 means "keep everything") and false for the explicit deletion paths
+/// (`lower_retention`, camera/stream deletion) which delete down to an explicit target.
 fn enqueue_delete_recordings(
     db: &mut db::LockedDatabase,
     stream_id: i32,
     extra_bytes_needed: i64,
+    retain_zero_is_unlimited: bool,
 ) -> Result<(), Error> {
     let fs_bytes_needed = {
         let stream = match db.streams_by_id().get(&stream_id) {
@@ -301,11 +338,15 @@ fn enqueue_delete_recordings(
             Some(s) => s,
         };
         let stream = stream.inner.lock();
-        stream.committed.fs_bytes + stream.fs_bytes_to_add() - stream.fs_bytes_to_delete
-            + extra_bytes_needed
-            - stream.config.retain_bytes
+        let fs_bytes_in_use =
+            stream.committed.fs_bytes + stream.fs_bytes_to_add() - stream.fs_bytes_to_delete;
+        fs_bytes_to_free(
+            fs_bytes_in_use,
+            extra_bytes_needed,
+            stream.config.retain_bytes,
+            retain_zero_is_unlimited,
+        )
     };
-    let mut fs_bytes_to_delete = 0;
     if fs_bytes_needed <= 0 {
         debug!(
             "{}: have remaining quota of {}",
@@ -314,6 +355,7 @@ fn enqueue_delete_recordings(
         );
         return Ok(());
     }
+    let mut fs_bytes_to_delete = 0;
     db.delete_oldest_recordings(stream_id, &mut |row| {
         if fs_bytes_needed >= fs_bytes_to_delete {
             fs_bytes_to_delete += db::round_up(i64::from(row.sample_file_bytes));
@@ -352,7 +394,7 @@ pub async fn lower_retention(db: &db::Database, limits: &[NewLimit]) -> Result<(
             if l.limit >= fs_bytes_before {
                 continue;
             }
-            enqueue_delete_recordings(db, l.stream_id, extra)?;
+            enqueue_delete_recordings(db, l.stream_id, extra, false)?;
         }
         Ok(())
     })
@@ -368,7 +410,7 @@ pub async fn initial_rotation(db: &crate::Database) -> Result<(), Error> {
             .filter_map(|(&id, s)| s.inner.lock().sample_file_dir.as_ref().map(|_| id))
             .collect();
         for &stream_id in &streams {
-            enqueue_delete_recordings(db, stream_id, 0)?;
+            enqueue_delete_recordings(db, stream_id, 0, true)?;
         }
         Ok(())
     })
@@ -467,4 +509,53 @@ where
         db.lock().flush("synchronous garbage collection")?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{fs_bytes_to_free, retention_tightened};
+
+    const GB: i64 = 1_000_000_000;
+
+    #[test]
+    fn auto_rotation_treats_zero_retain_bytes_as_unlimited() {
+        // The bug: with retain_bytes == 0 the old formula computed
+        // `in_use + extra - 0 == in_use` (a large positive number), causing every
+        // completed recording to be deleted. The automatic-rotation path must instead
+        // treat 0 as "retain everything" and free nothing.
+        assert_eq!(fs_bytes_to_free(100 * GB, 0, 0, true), 0);
+        assert_eq!(fs_bytes_to_free(0, 0, 0, true), 0);
+    }
+
+    #[test]
+    fn auto_rotation_enforces_finite_quota() {
+        // Over quota by 50 GB: free 50 GB.
+        assert_eq!(fs_bytes_to_free(150 * GB, 0, 100 * GB, true), 50 * GB);
+        // Under quota: nothing to free (negative result).
+        assert_eq!(fs_bytes_to_free(50 * GB, 0, 100 * GB, true), -50 * GB);
+        // extra_bytes_needed (headroom for a pending write) pushes over quota.
+        assert_eq!(fs_bytes_to_free(100 * GB, 10 * GB, 100 * GB, true), 10 * GB);
+    }
+
+    #[test]
+    fn explicit_deletion_path_purges_on_zero_budget() {
+        // The lower_retention / camera-deletion path passes retain_zero_is_unlimited=false
+        // and cancels out the configured retain_bytes via extra_bytes_needed, so a 0 budget
+        // must still purge everything. This preserves "delete all on camera removal".
+        assert_eq!(fs_bytes_to_free(100 * GB, 0, 0, false), 100 * GB);
+    }
+
+    #[test]
+    fn retention_tightened_only_when_effective_cap_shrinks() {
+        // Lowering a finite cap tightens (must delete excess immediately).
+        assert!(retention_tightened(100 * GB, 50 * GB));
+        // Switching to unlimited (0) loosens: must NOT trigger deletion.
+        assert!(!retention_tightened(100 * GB, 0));
+        // Going from unlimited (0) to a finite cap tightens.
+        assert!(retention_tightened(0, 100 * GB));
+        // No change, or raising the cap, does not tighten.
+        assert!(!retention_tightened(0, 0));
+        assert!(!retention_tightened(100 * GB, 100 * GB));
+        assert!(!retention_tightened(50 * GB, 100 * GB));
+    }
 }
