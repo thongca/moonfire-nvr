@@ -58,6 +58,43 @@ pub fn decode_exp(jwt: &str) -> Option<i64> {
     payload.get("exp").and_then(|v| v.as_i64())
 }
 
+/// Returns the MediaMTX path portion of an RTSP URL — i.e. `url.path()` with
+/// surrounding slashes trimmed. Internal slashes (nested paths) are preserved.
+pub fn path_from_url(url: &url::Url) -> String {
+    url.path().trim_matches('/').to_owned()
+}
+
+/// Renders a URL for logging with the `token` query value replaced by
+/// `<redacted>`. Other query parameters are preserved verbatim.
+pub fn redact_token_in_url(url: &url::Url) -> String {
+    let Some(query) = url.query() else {
+        return url.as_str().to_owned();
+    };
+    let mut found = false;
+    let parts: Vec<String> = query
+        .split('&')
+        .map(|pair| {
+            let key = pair.split('=').next().unwrap_or("");
+            if key == "token" {
+                found = true;
+                "token=<redacted>".to_string()
+            } else {
+                pair.to_string()
+            }
+        })
+        .collect();
+    if !found {
+        return url.as_str().to_owned();
+    }
+    let new_query = parts.join("&");
+    // Reconstruct the URL string preserving the literal redaction marker
+    // (set_query / query_pairs_mut would percent-encode the angle brackets).
+    let raw = url.as_str();
+    let q_start = raw.find('?').expect("query() returned Some, so '?' must be present");
+    let fragment = raw.find('#').map(|i| &raw[i..]).unwrap_or("");
+    format!("{}?{}{}", &raw[..q_start], new_query, fragment)
+}
+
 /// Returns a copy of `base` with `token=<tok>` set as a query parameter,
 /// replacing any existing `token` and preserving all other parameters.
 pub fn with_token(base: &url::Url, tok: &str) -> url::Url {
@@ -151,5 +188,35 @@ mod tests {
         let result = with_token(&base, "newjwt");
         // Order: non-token params kept in their original order, token re-appended last.
         assert_eq!(result.as_str(), "rtsp://h/p?foo=bar&baz=qux&token=newjwt");
+    }
+
+    #[test]
+    fn path_from_url_strips_leading_and_trailing_slashes() {
+        let u = url::Url::parse("rtsp://h:8554/vtd-vqh-cam-1-main").unwrap();
+        assert_eq!(path_from_url(&u), "vtd-vqh-cam-1-main");
+    }
+
+    #[test]
+    fn path_from_url_handles_trailing_slash() {
+        let u = url::Url::parse("rtsp://h:8554/cam1/").unwrap();
+        assert_eq!(path_from_url(&u), "cam1");
+    }
+
+    #[test]
+    fn path_from_url_preserves_internal_slashes_for_nested_paths() {
+        let u = url::Url::parse("rtsp://h:8554/live/cam1").unwrap();
+        assert_eq!(path_from_url(&u), "live/cam1");
+    }
+
+    #[test]
+    fn redact_token_in_url_replaces_value_only() {
+        let u = url::Url::parse("rtsp://h/p?foo=bar&token=secretsecret").unwrap();
+        assert_eq!(redact_token_in_url(&u), "rtsp://h/p?foo=bar&token=<redacted>");
+    }
+
+    #[test]
+    fn redact_token_in_url_passthrough_when_no_token_param() {
+        let u = url::Url::parse("rtsp://h/p?foo=bar").unwrap();
+        assert_eq!(redact_token_in_url(&u), "rtsp://h/p?foo=bar");
     }
 }
