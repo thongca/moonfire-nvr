@@ -9,6 +9,104 @@
 //! static DB-stored token has expired.
 
 use base::{bail, err, Error};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
+use async_trait::async_trait;
+use tokio::sync::Mutex as AsyncMutex;
+
+const REFRESH_SKEW_SEC: i64 = 300;
+
+/// A freshly-minted MediaMTX stream token.
+#[derive(Clone, Debug)]
+pub struct MintedToken {
+    pub jwt: String,
+    pub exp_unix: i64,
+}
+
+/// What the streamer depends on. Wraps a `TokenMinter` plus a per-path cache.
+#[async_trait]
+pub trait TokenProvider: Send + Sync {
+    /// Returns a token for `path`, minting (or reusing a cached one) as needed.
+    /// `Ok(None)` is the "provider unconfigured" sentinel — the caller should
+    /// then use the original URL unchanged.
+    async fn token_for(&self, path: &str) -> Result<Option<String>, Error>;
+
+    /// Drops any cached token for `path`. Called after an `open()` failure so
+    /// the next attempt re-mints.
+    fn invalidate(&self, path: &str);
+}
+
+/// The HTTP boundary, injectable for tests.
+#[async_trait]
+pub trait TokenMinter: Send + Sync {
+    async fn mint(&self, path: &str) -> Result<MintedToken, Error>;
+}
+
+/// Caching `TokenProvider` that delegates the network call to a `TokenMinter`.
+///
+/// Two locks, mirroring the pattern in `external_mediamtx.rs`:
+/// - `cache`: a sync `Mutex` so `invalidate` (sync per the trait) can drop
+///   entries without `await`. Held only briefly — never across awaits.
+/// - `mint_lock`: an async `Mutex` that serialises in-flight mints. With the
+///   double-check-after-locking pattern below, concurrent reconnects for the
+///   same path collapse to one upstream call.
+pub struct DetaiServiceTokenProvider {
+    minter: Box<dyn TokenMinter>,
+    cache: Mutex<HashMap<String, MintedToken>>,
+    mint_lock: AsyncMutex<()>,
+}
+
+impl DetaiServiceTokenProvider {
+    pub fn new(minter: Box<dyn TokenMinter>) -> Self {
+        Self {
+            minter,
+            cache: Mutex::new(HashMap::new()),
+            mint_lock: AsyncMutex::new(()),
+        }
+    }
+
+    fn cached_fresh(&self, path: &str, now: i64) -> Option<String> {
+        let guard = self.cache.lock().unwrap();
+        let existing = guard.get(path)?;
+        if existing.exp_unix - now > REFRESH_SKEW_SEC {
+            Some(existing.jwt.clone())
+        } else {
+            None
+        }
+    }
+}
+
+#[async_trait]
+impl TokenProvider for DetaiServiceTokenProvider {
+    async fn token_for(&self, path: &str) -> Result<Option<String>, Error> {
+        let now = unix_now();
+        if let Some(jwt) = self.cached_fresh(path, now) {
+            return Ok(Some(jwt));
+        }
+        let _serialise = self.mint_lock.lock().await;
+        // Double-check after acquiring the mint lock in case another caller
+        // minted while we were waiting.
+        if let Some(jwt) = self.cached_fresh(path, unix_now()) {
+            return Ok(Some(jwt));
+        }
+        let minted = self.minter.mint(path).await?;
+        let jwt = minted.jwt.clone();
+        self.cache.lock().unwrap().insert(path.to_owned(), minted);
+        Ok(Some(jwt))
+    }
+
+    fn invalidate(&self, path: &str) {
+        self.cache.lock().unwrap().remove(path);
+    }
+}
+
+fn unix_now() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0)
+}
 
 /// Extracts the JWT from a token-service response body.
 ///
@@ -218,5 +316,136 @@ mod tests {
     fn redact_token_in_url_passthrough_when_no_token_param() {
         let u = url::Url::parse("rtsp://h/p?foo=bar").unwrap();
         assert_eq!(redact_token_in_url(&u), "rtsp://h/p?foo=bar");
+    }
+
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::Mutex as StdMutex;
+
+    struct FakeMinter {
+        responses: StdMutex<Vec<Result<MintedToken, &'static str>>>,
+        calls: AtomicU32,
+        delay_ms: u64,
+    }
+
+    impl FakeMinter {
+        fn new(responses: Vec<Result<MintedToken, &'static str>>) -> Self {
+            Self {
+                responses: StdMutex::new(responses),
+                calls: AtomicU32::new(0),
+                delay_ms: 0,
+            }
+        }
+        fn with_delay(mut self, ms: u64) -> Self {
+            self.delay_ms = ms;
+            self
+        }
+        fn calls(&self) -> u32 {
+            self.calls.load(Ordering::SeqCst)
+        }
+    }
+
+    #[async_trait]
+    impl TokenMinter for FakeMinter {
+        async fn mint(&self, _path: &str) -> Result<MintedToken, Error> {
+            if self.delay_ms > 0 {
+                tokio::time::sleep(std::time::Duration::from_millis(self.delay_ms)).await;
+            }
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            let mut q = self.responses.lock().unwrap();
+            assert!(!q.is_empty(), "FakeMinter ran out of canned responses");
+            match q.remove(0) {
+                Ok(t) => Ok(t),
+                Err(msg) => bail!(Unknown, msg("{}", msg)),
+            }
+        }
+    }
+
+    fn fresh(jwt: &str) -> MintedToken {
+        MintedToken {
+            jwt: jwt.to_owned(),
+            exp_unix: unix_now() + 86_400,
+        }
+    }
+
+    fn near_expiry(jwt: &str) -> MintedToken {
+        // exp within REFRESH_SKEW_SEC → must trigger re-mint on the next call.
+        MintedToken {
+            jwt: jwt.to_owned(),
+            exp_unix: unix_now() + 100,
+        }
+    }
+
+    #[tokio::test]
+    async fn token_for_mints_on_miss_then_caches() {
+        let minter = FakeMinter::new(vec![Ok(fresh("j1"))]);
+        let provider = DetaiServiceTokenProvider::new(Box::new(minter));
+        assert_eq!(provider.token_for("p").await.unwrap().as_deref(), Some("j1"));
+        assert_eq!(provider.token_for("p").await.unwrap().as_deref(), Some("j1"));
+        // Only one mint despite two calls.
+    }
+
+    #[tokio::test]
+    async fn token_for_remints_when_within_refresh_skew() {
+        let minter = FakeMinter::new(vec![Ok(near_expiry("j1")), Ok(fresh("j2"))]);
+        let provider = DetaiServiceTokenProvider::new(Box::new(minter));
+        assert_eq!(provider.token_for("p").await.unwrap().as_deref(), Some("j1"));
+        // Cached token's exp is within the skew → re-mint.
+        assert_eq!(provider.token_for("p").await.unwrap().as_deref(), Some("j2"));
+    }
+
+    #[tokio::test]
+    async fn invalidate_forces_re_mint() {
+        let minter = FakeMinter::new(vec![Ok(fresh("j1")), Ok(fresh("j2"))]);
+        let provider = DetaiServiceTokenProvider::new(Box::new(minter));
+        provider.token_for("p").await.unwrap();
+        provider.invalidate("p");
+        assert_eq!(provider.token_for("p").await.unwrap().as_deref(), Some("j2"));
+    }
+
+    #[tokio::test]
+    async fn distinct_paths_are_cached_independently() {
+        let minter = FakeMinter::new(vec![Ok(fresh("a")), Ok(fresh("b"))]);
+        let provider = DetaiServiceTokenProvider::new(Box::new(minter));
+        assert_eq!(provider.token_for("alpha").await.unwrap().as_deref(), Some("a"));
+        assert_eq!(provider.token_for("beta").await.unwrap().as_deref(), Some("b"));
+        // Re-fetching either should hit cache, not mint a third time.
+        assert_eq!(provider.token_for("alpha").await.unwrap().as_deref(), Some("a"));
+        assert_eq!(provider.token_for("beta").await.unwrap().as_deref(), Some("b"));
+    }
+
+    #[tokio::test]
+    async fn concurrent_token_for_same_path_collapses_to_one_mint() {
+        // FakeMinter sleeps briefly so the second concurrent call lands while
+        // the first is still inside mint(). With a single async lock around the
+        // cache, the second call awaits the lock, sees the cached value, and
+        // returns without minting.
+        let minter = Arc::new(FakeMinter::new(vec![Ok(fresh("j1"))]).with_delay(50));
+        // We need two references to the same provider; build it with an Arc.
+        struct ArcMinter(Arc<FakeMinter>);
+        #[async_trait]
+        impl TokenMinter for ArcMinter {
+            async fn mint(&self, path: &str) -> Result<MintedToken, Error> {
+                self.0.mint(path).await
+            }
+        }
+        let provider = Arc::new(DetaiServiceTokenProvider::new(Box::new(ArcMinter(minter.clone()))));
+        let p1 = provider.clone();
+        let p2 = provider.clone();
+        let (a, b) = tokio::join!(
+            async move { p1.token_for("p").await.unwrap() },
+            async move { p2.token_for("p").await.unwrap() }
+        );
+        assert_eq!(a.as_deref(), Some("j1"));
+        assert_eq!(b.as_deref(), Some("j1"));
+        assert_eq!(minter.calls(), 1, "herd not collapsed");
+    }
+
+    #[tokio::test]
+    async fn minter_error_propagates_and_caches_nothing() {
+        let minter = FakeMinter::new(vec![Err("boom"), Ok(fresh("j1"))]);
+        let provider = DetaiServiceTokenProvider::new(Box::new(minter));
+        assert!(provider.token_for("p").await.is_err());
+        // Cache is empty, so the next call mints again.
+        assert_eq!(provider.token_for("p").await.unwrap().as_deref(), Some("j1"));
     }
 }
