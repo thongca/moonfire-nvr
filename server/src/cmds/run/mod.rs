@@ -299,6 +299,7 @@ async fn inner(
                 sample_entries: l.sample_entries().clone(),
                 opener: &crate::stream::OPENER,
                 shutdown_rx: shutdown_rx.clone(),
+                token_provider: None,
             }))
         }; // l dropped here
         let mut mgr = StreamerManager::new(db.clone(), env, streamer_rx);

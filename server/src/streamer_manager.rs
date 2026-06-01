@@ -191,6 +191,7 @@ mod tests {
                 sample_entries: db.lock().sample_entries().clone(),
                 opener: &crate::stream::OPENER,
                 shutdown_rx: tdb.shutdown_rx.clone(),
+                token_provider: None,
             }));
         let (tx, rx) = mpsc::channel(8);
         let mgr = StreamerManager::new(db.clone(), env, rx);

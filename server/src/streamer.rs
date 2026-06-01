@@ -22,6 +22,7 @@ where
     pub opener: &'a dyn stream::Opener,
     pub sample_entries: db::sample_entries::Handle,
     pub shutdown_rx: base::shutdown::Receiver,
+    pub token_provider: Option<std::sync::Arc<dyn crate::stream_token::TokenProvider>>,
 }
 
 /// Connects to a given RTSP stream and writes recordings to the database via [`writer::Writer`].
@@ -110,7 +111,24 @@ impl<'a, C: Clocks + Clone> Streamer<'a, C> {
     }
 
     async fn run_once(&mut self) -> Result<(), Error> {
-        info!(url = %self.url, "opening input");
+        let path = crate::stream_token::path_from_url(&self.url);
+        let token = if let Some(provider) = self.env.token_provider.as_ref() {
+            tokio::select! {
+                biased;
+                _ = self.env.shutdown_rx.as_future() => bail!(Cancelled, msg("shutdown")),
+                r = provider.token_for(&path) => r?,
+            }
+        } else {
+            None
+        };
+        let open_url = match token.as_deref() {
+            Some(tok) => crate::stream_token::with_token(&self.url, tok),
+            None => self.url.clone(),
+        };
+        info!(
+            url = %crate::stream_token::redact_token_in_url(&open_url),
+            "opening input"
+        );
         let clocks = &self.env.clocks;
 
         let mut waited = false;
@@ -136,7 +154,9 @@ impl<'a, C: Clocks + Clone> Streamer<'a, C> {
         }
 
         let mut stream = {
-            let _t = TimerGuard::new(clocks, |_| format!("opening {}", self.url));
+            let _t = TimerGuard::new(clocks, |_| {
+                format!("opening {}", crate::stream_token::redact_token_in_url(&open_url))
+            });
             let options = stream::Options {
                 session: retina::client::SessionOptions::default()
                     .creds(if self.username.is_empty() {
@@ -150,10 +170,19 @@ impl<'a, C: Clocks + Clone> Streamer<'a, C> {
                     .session_group(self.session_group.clone()),
                 setup: retina::client::SetupOptions::default().transport(self.transport.clone()),
             };
-            tokio::select! {
+            let r = tokio::select! {
                 biased;
                 _ = self.env.shutdown_rx.as_future() => bail!(Cancelled, msg("shutdown")),
-                r = self.env.opener.open(self.short_name.clone(), self.url.clone(), options) => r?,
+                r = self.env.opener.open(self.short_name.clone(), open_url.clone(), options) => r,
+            };
+            match r {
+                Ok(s) => s,
+                Err(e) => {
+                    if let Some(provider) = self.env.token_provider.as_ref() {
+                        provider.invalidate(&path);
+                    }
+                    return Err(e);
+                }
             }
         };
         let realtime_offset = clocks.realtime().0 - clocks.monotonic().0;
@@ -428,6 +457,7 @@ mod tests {
             clocks,
             opener: &opener,
             shutdown_rx,
+            token_provider: None,
         };
         let mut stream;
         let pool;
@@ -501,5 +531,129 @@ mod tests {
         assert_eq!(db::RecordingFlags::TRAILING_ZERO, recordings[1].flags);
 
         drop(opener);
+    }
+
+    use crate::stream_token::TokenProvider;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::Mutex as StdMutex;
+
+    struct FakeProvider {
+        invalidate_calls: StdMutex<Vec<String>>,
+        token_for_calls: AtomicU32,
+    }
+
+    impl FakeProvider {
+        fn new() -> Self {
+            Self {
+                invalidate_calls: StdMutex::new(Vec::new()),
+                token_for_calls: AtomicU32::new(0),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl TokenProvider for FakeProvider {
+        async fn token_for(&self, _path: &str) -> Result<Option<String>, Error> {
+            let n = self.token_for_calls.fetch_add(1, Ordering::SeqCst) + 1;
+            Ok(Some(format!("jwt-{n}")))
+        }
+        fn invalidate(&self, path: &str) {
+            self.invalidate_calls.lock().unwrap().push(path.to_owned());
+        }
+    }
+
+    /// Always fails open(); records every URL it sees; signals shutdown after
+    /// `max_attempts` so `Streamer::run` exits.
+    struct OnlyFailingOpener {
+        seen_tokens: StdMutex<Vec<String>>,
+        seen_paths: StdMutex<Vec<String>>,
+        max_attempts: u32,
+        shutdown_tx: Mutex<Option<base::shutdown::Sender>, 1>,
+    }
+
+    #[async_trait]
+    impl stream::Opener for OnlyFailingOpener {
+        async fn open(
+            &self,
+            _label: String,
+            url: url::Url,
+            _options: stream::Options,
+        ) -> Result<Box<dyn stream::Stream>, Error> {
+            let token = url
+                .query_pairs()
+                .find(|(k, _)| k == "token")
+                .map(|(_, v)| v.into_owned())
+                .unwrap_or_default();
+            let path = url.path().trim_matches('/').to_owned();
+            self.seen_tokens.lock().unwrap().push(token);
+            self.seen_paths.lock().unwrap().push(path);
+            let n = self.seen_tokens.lock().unwrap().len() as u32;
+            if n >= self.max_attempts {
+                self.shutdown_tx.lock().take();
+            }
+            bail!(Unavailable, msg("simulated DESCRIBE 401 (attempt {})", n))
+        }
+    }
+
+    #[tokio::test]
+    async fn mints_token_and_invalidates_on_open_error() {
+        testutil::init();
+        let clocks = clock::SimulatedClocks::new(clock::SystemTime::new(1429920000, 0));
+
+        let (shutdown_tx, shutdown_rx) = base::shutdown::channel();
+        let opener = OnlyFailingOpener {
+            seen_tokens: StdMutex::new(Vec::new()),
+            seen_paths: StdMutex::new(Vec::new()),
+            max_attempts: 2,
+            shutdown_tx: Mutex::new(Some(shutdown_tx)),
+        };
+        let provider = Arc::new(FakeProvider::new());
+        let db = testutil::TestDb::new(clocks.clone()).await;
+        let env = super::Environment {
+            sample_entries: db.db.lock().sample_entries().clone(),
+            clocks,
+            opener: &opener,
+            shutdown_rx,
+            token_provider: Some(provider.clone() as Arc<dyn TokenProvider>),
+        };
+        let mut streamer;
+        {
+            let l = db.db.lock();
+            let camera = l.cameras_by_id().get(&testutil::TEST_CAMERA_ID).unwrap();
+            let s = l.streams_by_id().get(&testutil::TEST_STREAM_ID).unwrap();
+            streamer = super::Streamer::new(
+                &env,
+                camera,
+                s.clone(),
+                &s.inner.lock(),
+                Arc::new(retina::client::SessionGroup::default()),
+                0,
+                3,
+            )
+            .unwrap();
+        }
+        streamer.run().await;
+
+        let seen_tokens = opener.seen_tokens.lock().unwrap().clone();
+        let seen_paths = opener.seen_paths.lock().unwrap().clone();
+        assert!(!seen_tokens.is_empty(), "opener must be called at least once");
+        for tok in &seen_tokens {
+            assert!(
+                tok.starts_with("jwt-"),
+                "every open() must carry a freshly minted token (got {tok:?})"
+            );
+        }
+        for p in &seen_paths {
+            assert_eq!(p, "main", "path must be derived from the stream URL");
+        }
+        let invalidations = provider.invalidate_calls.lock().unwrap();
+        assert!(
+            !invalidations.is_empty(),
+            "invalidate must be called after open error"
+        );
+        assert!(
+            invalidations.iter().all(|p| p == "main"),
+            "all invalidations should be for path 'main' (saw {invalidations:?})"
+        );
     }
 }
