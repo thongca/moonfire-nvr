@@ -17,6 +17,7 @@ mod mp4;
 mod process_telemetry;
 mod slices;
 mod stream;
+mod stream_token;
 mod streamer;
 mod streamer_manager;
 mod web;

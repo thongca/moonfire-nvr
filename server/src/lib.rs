@@ -3,3 +3,4 @@
 // SPDX-License-Identifier: GPL-v3.0-or-later WITH GPL-3.0-linking-exception.
 
 pub mod process_telemetry;
+pub mod stream_token;
