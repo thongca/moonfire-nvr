@@ -58,6 +58,26 @@ pub fn decode_exp(jwt: &str) -> Option<i64> {
     payload.get("exp").and_then(|v| v.as_i64())
 }
 
+/// Returns a copy of `base` with `token=<tok>` set as a query parameter,
+/// replacing any existing `token` and preserving all other parameters.
+pub fn with_token(base: &url::Url, tok: &str) -> url::Url {
+    let kept: Vec<(String, String)> = base
+        .query_pairs()
+        .filter(|(k, _)| k != "token")
+        .map(|(k, v)| (k.into_owned(), v.into_owned()))
+        .collect();
+    let mut out = base.clone();
+    {
+        let mut q = out.query_pairs_mut();
+        q.clear();
+        for (k, v) in &kept {
+            q.append_pair(k, v);
+        }
+        q.append_pair("token", tok);
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -106,5 +126,30 @@ mod tests {
         assert_eq!(decode_exp("not.a.jwt"), None);
         assert_eq!(decode_exp("only_one_part"), None);
         assert_eq!(decode_exp("a.b"), None);
+    }
+
+    #[test]
+    fn with_token_inserts_when_absent() {
+        let base = url::Url::parse("rtsp://10.20.0.254:8554/vtd-vqh-cam-1-main").unwrap();
+        let result = with_token(&base, "newjwt");
+        assert_eq!(
+            result.as_str(),
+            "rtsp://10.20.0.254:8554/vtd-vqh-cam-1-main?token=newjwt"
+        );
+    }
+
+    #[test]
+    fn with_token_replaces_when_present() {
+        let base = url::Url::parse("rtsp://h/p?token=oldjwt").unwrap();
+        let result = with_token(&base, "newjwt");
+        assert_eq!(result.as_str(), "rtsp://h/p?token=newjwt");
+    }
+
+    #[test]
+    fn with_token_preserves_other_params() {
+        let base = url::Url::parse("rtsp://h/p?foo=bar&token=old&baz=qux").unwrap();
+        let result = with_token(&base, "newjwt");
+        // Order: non-token params kept in their original order, token re-appended last.
+        assert_eq!(result.as_str(), "rtsp://h/p?foo=bar&baz=qux&token=newjwt");
     }
 }
